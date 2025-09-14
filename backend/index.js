@@ -142,8 +142,17 @@ io.on('connection', (socket) => {
     // Eventos de Señalización de WebRTC
     socket.on('webrtc-offer', (payload) => {
         try {
-            console.log(`[WebRTC] Recibida oferta de ${socket.id}, retransmitiendo a 'phone-room'.`);
-            socket.to('phone-room').emit('webrtc-offer', payload);
+            // Corregido: la oferta SIEMPRE debe llegar a los operadores (operator-room),
+            // porque el teléfono es quien inicia la oferta y los operadores generan la answer.
+            if (socket.id !== connectedClients.phoneSocketId) {
+                console.warn(`[WebRTC] Oferta ignorada: ${socket.id} no es el teléfono registrado.`);
+                return;
+            }
+            if (connectedClients.operatorSocketIds.size === 0) {
+                console.warn('[WebRTC] Oferta recibida pero no hay operadores conectados actualmente.');
+            }
+            console.log(`[WebRTC] Oferta recibida del teléfono ${socket.id}. Reenviando a 'operator-room' (${connectedClients.operatorSocketIds.size} operadores).`);
+            socket.to('operator-room').emit('webrtc-offer', payload);
         } catch (error) {
             console.error(`[ERROR] en evento 'webrtc-offer' para socket ${socket.id}:`, error);
         }
@@ -151,8 +160,18 @@ io.on('connection', (socket) => {
 
     socket.on('webrtc-answer', (payload) => {
         try {
-            console.log(`[WebRTC] Recibida respuesta de ${socket.id}, retransmitiendo a 'operator-room'.`);
-            socket.to('operator-room').emit('webrtc-answer', payload);
+            // Corregido: la answer debe volver únicamente al teléfono.
+            if (!connectedClients.phoneSocketId) {
+                console.warn('[WebRTC] Answer recibida pero no hay teléfono registrado.');
+                return;
+            }
+            const isOperator = connectedClients.operatorSocketIds.has(socket.id);
+            if (!isOperator) {
+                console.warn(`[WebRTC] Answer ignorada: ${socket.id} no es un operador registrado.`);
+                return;
+            }
+            console.log(`[WebRTC] Answer recibida de operador ${socket.id}. Enviando al teléfono ${connectedClients.phoneSocketId}.`);
+            io.to(connectedClients.phoneSocketId).emit('webrtc-answer', payload);
         } catch (error) {
             console.error(`[ERROR] en evento 'webrtc-answer' para socket ${socket.id}:`, error);
         }
