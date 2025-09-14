@@ -79,7 +79,7 @@ Actualmente:
 - Distancias: Haversine (metros). Se evalúa cada `gps-update` y se emite `poi-in-range` sin supresión de duplicados (UI recibe cada tick en rango).
 - Modificar: editar JSON + reiniciar backend.
 
-## 10. Telemetría GPS (Campos Nuevos y Orientación 3D)
+## 10. Telemetría GPS (Campos Nuevos y Visualización)
 Desde la actualización reciente, el payload emitido por el teléfono en `gps-update` incluye:
 ```
 {
@@ -96,8 +96,9 @@ En el operador:
 - Si `heading` es nulo y existe un fix previo y se avanza > 1 m, se deriva un rumbo (bearing) entre la posición anterior y la nueva, etiquetado como `headingSource: 'derived'`.
 - Si no hay heading disponible se marca `headingSource: 'none'`.
 - Se aplica suavizado angular (EMA) para evitar saltos bruscos.
-- Se reemplazó el antiguo billboard 2D por un cono 3D (CylinderGraphics degenerado) con quaternion de orientación (`HeadingPitchRoll`).
-- La cámara pasa a hacer *track* automático de la entidad al aparecer (centrada y evitando que la rotación de cámara distorsione la percepción del rumbo).
+- El marcador ahora es un punto 2D (PointGraphics) clamp al terreno + círculo de precisión (ellipse) con radio = accuracy.
+- Indicador de rumbo: una línea corta delante del punto cuando hay heading válido.
+- La cámara realiza *tracking* automático de la entidad al aparecer para mantenerla centrada.
 
 ## 11. UI Operador
 - Ventana PIP: arrastrable (mousedown sobre el área excepto botones). Clases dinámicas de estado WebRTC `pc-state-<state>`.
