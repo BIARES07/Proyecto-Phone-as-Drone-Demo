@@ -5,7 +5,11 @@ export const createPeerConnection = (socket, setVideoStream) => {
     });
   
     peerConnection.ontrack = (event) => {
-      setVideoStream(event.streams[0]);
+      const stream = new MediaStream();
+      event.streams[0].getTracks().forEach(track => {
+        stream.addTrack(track);
+      });
+      setVideoStream(stream);
     };
   
     peerConnection.onicecandidate = (event) => {

@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import MapView from './components/MapView';
 import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
+import GpsDisplay from './components/GpsDisplay'; // Importar el nuevo componente
 import { createPeerConnection } from './lib/webrtc';
 import './App.css';
 
@@ -84,6 +85,7 @@ function App() {
   // --- RENDER ---
   return (
     <div className="app-container">
+      <GpsDisplay position={phonePosition} /> {/* Añadir el componente aquí */}
       <div className="video-container">
         <VideoStream stream={videoStream} />
         {!isConnected && <div className="status-overlay">Esperando conexión del teléfono...</div>}
