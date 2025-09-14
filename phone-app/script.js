@@ -167,3 +167,72 @@ async function handleNewICECandidate(payload) {
 
 // 6. Punto de Entrada
 main();
+
+// 7. Consola embebida (debug en móvil)
+(function initEmbeddedConsole(){
+    const wrapper = document.getElementById('embeddedConsoleWrapper');
+    if(!wrapper) return; // por seguridad
+    const logContainer = document.getElementById('embeddedConsoleLog');
+    const btnToggle = document.getElementById('toggleConsoleBtn');
+    const btnClear = document.getElementById('clearConsoleBtn');
+
+    const original = {
+        log: console.log.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+        debug: console.debug.bind(console)
+    };
+
+    const push = (level, args) => {
+        try {
+            const div = document.createElement('div');
+            div.className = `log-entry log-level-${level}`;
+            const time = new Date().toISOString().split('T')[1].replace('Z','');
+            const spanTime = `<span class="log-time">${time}</span>`;
+            const text = args.map(a => {
+                if (a instanceof Error) return a.stack || a.message;
+                if (typeof a === 'object') {
+                    try { return JSON.stringify(a); } catch { return '[Object]'; }
+                }
+                return String(a);
+            }).join(' ');
+            div.innerHTML = spanTime + text;
+            logContainer.appendChild(div);
+            // recortar si excede 500 entradas
+            if (logContainer.children.length > 500) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+            logContainer.scrollTop = logContainer.scrollHeight;
+        } catch(e){
+            original.error('EmbeddedConsole push error', e);
+        }
+    };
+
+    console.log = (...args) => { push('info', args); original.log(...args); };
+    console.warn = (...args) => { push('warn', args); original.warn(...args); };
+    console.error = (...args) => { push('error', args); original.error(...args); };
+    console.debug = (...args) => { push('debug', args); original.debug(...args); };
+
+    window.addEventListener('error', (ev) => {
+        push('error', ['[GlobalError]', ev.message, ev.filename+':'+ev.lineno+':'+ev.colno]);
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+        push('error', ['[UnhandledPromiseRejection]', ev.reason]);
+    });
+
+    btnToggle.addEventListener('click', () => {
+        const collapsed = wrapper.classList.toggle('collapsed');
+        btnToggle.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+    });
+    btnClear.addEventListener('click', () => {
+        logContainer.innerHTML='';
+    });
+
+    // Mostrar automáticamente primeros logs si hay error inicial
+    setTimeout(()=>{
+        if(logContainer.querySelector('.log-level-error')) {
+            wrapper.classList.remove('collapsed');
+            btnToggle.textContent = 'Ocultar';
+        }
+    },2000);
+})();

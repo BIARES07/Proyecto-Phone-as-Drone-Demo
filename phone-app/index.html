@@ -37,6 +37,49 @@
             font-size: 14px;
             color: #555;
         }
+        /* Consola embebida */
+        #embeddedConsoleWrapper {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            max-height: 40vh;
+            background: rgba(0,0,0,0.85);
+            color: #eee;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.3em;
+            display: flex;
+            flex-direction: column;
+            border-top: 2px solid #444;
+            z-index: 9999;
+        }
+        #embeddedConsoleHeader {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 8px;
+            background: #222;
+            border-bottom: 1px solid #333;
+        }
+        #embeddedConsoleHeader button {
+            font-size: 11px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        #embeddedConsoleLog {
+            overflow-y: auto;
+            padding: 6px 8px;
+            flex: 1;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .log-entry { margin-bottom: 4px; }
+        .log-time { color: #888; margin-right:4px; }
+        .log-level-info { color: #9cdcfe; }
+        .log-level-warn { color: #ffcc66; }
+        .log-level-error { color: #ff6b6b; }
+        .log-level-debug { color: #baff99; }
+        .collapsed #embeddedConsoleLog { display: none; }
+        .collapsed { max-height: unset; }
     </style>
 </head>
 <body>
@@ -53,5 +96,14 @@
 
     <!-- 5. Enlazar el archivo de lógica principal -->
     <script src="script.js"></script>
+    <!-- Contenedor de consola embebida -->
+    <div id="embeddedConsoleWrapper" class="collapsed" aria-label="Embedded Console" role="region">
+        <div id="embeddedConsoleHeader">
+            <strong style="flex:1;">Console</strong>
+            <button id="toggleConsoleBtn">Mostrar</button>
+            <button id="clearConsoleBtn">Limpiar</button>
+        </div>
+        <div id="embeddedConsoleLog"></div>
+    </div>
 </body>
 </html>
