@@ -1,7 +1,7 @@
 // B. Lógica del Archivo script.js
 
 // 1. Variables Globales y Constantes
-const SERVER_URL = "http://localhost:3001"; // Cambia a tu URL de Render cuando despliegues
+const SERVER_URL = "https://proyecto-phone-as-drone-demo.onrender.com"; // Cambia a tu URL de Render cuando despliegues
 let socket;
 let peerConnection;
 let localStream;
