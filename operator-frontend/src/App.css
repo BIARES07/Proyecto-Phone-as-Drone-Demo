@@ -10,32 +10,50 @@ body, html, #root {
   color: white;
 }
 
-/* Contenedor principal de la aplicación usando CSS Grid */
+/* Layout pantalla completa mapa + PiP video */
 .app-container {
-  display: grid;
-  grid-template-columns: 2fr 1fr; /* Columna de video 66%, columna de mapa 33% */
-  grid-template-rows: 100vh; /* Ocupa toda la altura de la ventana */
+  position: relative;
   width: 100vw;
   height: 100vh;
-  position: relative; /* Necesario para posicionar hijos absolutos como el panel GPS */
-}
-
-/* Contenedor para el stream de video */
-.video-container {
-  position: relative;
-  background-color: #000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
 }
 
-/* Contenedor para el mapa de Cesium */
+/* Mapa ocupa todo */
 .map-container {
-  background-color: #2a2a2a;
-  overflow: hidden; /* Cesium maneja su propio tamaño */
-  position: relative; /* IMPORTANTE: limita el Viewer 'full' a esta celda del grid */
-  /* outline: 1px solid #0f0; */
+  position: absolute;
+  inset: 0;
+  background-color: #1d1d1d;
+  overflow: hidden;
+}
+
+/* Video como Picture-in-Picture */
+.video-container {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 360px;
+  height: 202px; /* 16:9 */
+  background: #000;
+  border: 2px solid #2ecc71;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: width .25s ease, height .25s ease;
+}
+
+.video-container:hover {
+  width: 420px;
+  height: 236px;
+}
+
+.video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* Overlay de estado para el video */
@@ -61,5 +79,10 @@ body, html, #root {
 .cesium-viewer {
   width: 100%;
   height: 100%;
+}
+
+@media (max-width: 800px) {
+  .video-container { width: 260px; height: 146px; }
+  .video-container:hover { width: 300px; height: 169px; }
 }
 
