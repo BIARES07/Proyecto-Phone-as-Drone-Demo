@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone-As-Drone Transmitter</title>
+    <!-- 1. Cargar la librería de Socket.IO desde el CDN -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        #localVideo {
+            border: 2px solid #333;
+            width: 80%;
+            max-width: 400px;
+            background-color: #000;
+        }
+        #startButton {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transmisor de Datos</h1>
+
+    <!-- 2. Elemento de video para la vista previa local -->
+    <video id="localVideo" autoplay muted playsinline></video>
+
+    <!-- 3. Botón para iniciar la transmisión (requerido por los navegadores) -->
+    <button id="startButton">Iniciar Transmisión</button>
+
+    <!-- 4. Div para mostrar el estado de la conexión y los permisos -->
+    <div id="status">Presiona "Iniciar" para comenzar.</div>
+
+    <!-- 5. Enlazar el archivo de lógica principal -->
+    <script src="script.js"></script>
+</body>
+</html>
