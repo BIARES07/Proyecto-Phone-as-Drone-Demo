@@ -1,8 +1,17 @@
-# Node.js Project
+# Backend (Phone-as-Drone Demo)
+Servidor Express + Socket.IO que:
+- Señaliza WebRTC (oferta/answer/ICE)
+- Reemite coordenadas GPS y evalúa POIs
+- Sirve `phone-app` bajo `/phone`
 
-This is a simple Node.js project.
+Instrucciones completas: ver README raíz (`../README.md`).
 
-## To run the project:
-1. Install dependencies: `npm install`
-2. Run the server: `node index.js`
-3. Open your browser and go to `http://127.0.0.1:3000/`
+Uso rápido:
+```
+cd backend
+npm install
+node index.js   # (opcional añadir script "start")
+```
+
+Variables: `PORT` (default 3001).
+Editar POIs: `data/pointsOfInterest.json` + reiniciar.

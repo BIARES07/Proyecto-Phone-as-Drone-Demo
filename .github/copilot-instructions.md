@@ -1,63 +1,43 @@
 # Instrucciones para Agentes de IA
+Resumen vivo de arquitectura y convenciones del proyecto Phone-as-Drone Demo. Mantener conciso (<50 líneas efectivas) y actualizar cuando cambie señalización, eventos o estructura.
 
-Estas pautas condensan la arquitectura y convenciones reales del proyecto Phone-as-Drone Demo.
-Mantén las respuestas concretas y aplica estos patrones antes de proponer refactors.
+## 1. Arquitectura
+1) `backend/` (Node + Express + Socket.IO) señaliza WebRTC, reemite GPS, detecta POIs, sirve `phone-app/` bajo `/phone`. Estado en memoria: `connectedClients`, `pointsOfInterest` (reinicios limpian).
+2) `phone-app/` (HTML/JS vanilla) captura cámara+micrófono, GPS, oferta WebRTC, emite `gps-update`, incluye consola embebida (limite 500 logs, toggle Mostrar/Ocultar).
+3) `operator-frontend/` (React + Vite + Cesium/Resium + `vite-plugin-cesium`) recibe video, telemetría, POIs; UI con ventana de video PIP draggable, atajos teclado: v (oculta/muestra), f (fullscreen).
 
-## 1. Arquitectura Big Picture
-- 3 piezas desacopladas:
-  1) `backend/` (Node + Express + Socket.IO) -> señalización WebRTC + broadcast GPS + detección de POIs + sirve `phone-app/` bajo `/phone`.
-  2) `phone-app/` (HTML+JS vanilla) -> captura cámara/micrófono + GPS + inicia oferta WebRTC + emite `gps-update`.
-  3) `operator-frontend/` (React + Vite + Cesium/Resium) -> recibe video, telemetría y eventos de proximidad POI, renderiza mapa 3D.
-- No hay DB persistente: estado en memoria (`connectedClients`, `pointsOfInterest`). Reinicios limpian estado runtime.
+## 2. Flujo Core
+Registro: PHONE -> `register-client` guarda `phoneSocketId`; OPERATOR -> entra a `operator-room` y recibe `phone-connected` si aplica.
+GPS: PHONE -> `gps-update` => broadcast `gps-from-phone`; si dentro de radio POI => `poi-in-range`.
+WebRTC: PHONE crea `webrtc-offer` -> operadores; operador crea `webrtc-answer` -> teléfono. ICE: cada lado -> backend -> lado opuesto (`operator-room` / `phone-room`). Al desconectar teléfono => `phone-disconnected` y operador limpia PeerConnection.
 
-## 2. Flujo de Datos Principal
-`phone-app` -> (Socket.IO: `register-client` PHONE) -> servidor guarda `phoneSocketId`.
-Operador -> (Socket.IO: `register-client` OPERATOR) -> servidor lo añade a `operator-room` y notifica si el teléfono ya está.
-GPS: teléfono emite `gps-update` => backend re-emite `gps-from-phone` a operadores y, si distancia <= radius de un POI, emite `poi-in-range`.
-Video: teléfono crea oferta (`webrtc-offer`) -> backend la reenvía a operadores -> operador responde (`webrtc-answer`) -> backend reenvía al teléfono. ICE candidatos (`webrtc-ice-candidate`) se enrutan cruzado según rol.
+## 3. Eventos Socket.IO
+Cliente→Servidor: `register-client {role:'PHONE'|'OPERATOR'}` | `gps-update {lat,lon,alt?}` | `webrtc-offer {sdp}` | `webrtc-answer {sdp}` (solo operador) | `webrtc-ice-candidate {candidate}`.
+Servidor→Operador: `phone-connected` | `phone-disconnected` | `gps-from-phone {lat,lon,alt?}` | `poi-in-range {name,latitude,longitude,radius,info}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}`.
+Servidor→Teléfono: `webrtc-answer {sdp}` | `webrtc-ice-candidate {candidate}`.
 
-## 3. Eventos Socket.IO (nombres exactos)
-- Cliente -> Servidor: `register-client {role: 'PHONE'|'OPERATOR'}` | `gps-update {lat, lon, alt?}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}` | `webrtc-answer {sdp}` (solo operador).
-- Servidor -> Operador: `phone-connected` | `phone-disconnected` | `gps-from-phone {lat, lon, alt?}` | `poi-in-range {name, latitude, longitude, radius, info}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}`.
-- Servidor -> Teléfono: `webrtc-answer {sdp}` | `webrtc-ice-candidate {candidate}`.
-
-## 4. WebRTC Patrón Actual
-- 1 PeerConnection por sesión; operador la crea tras recibir la oferta.
-- STUN fijo: `stun:stun.l.google.com:19302` en ambos lados (sin TURN; añadir TURN si falla tras CGNAT / redes corporativas).
-- El teléfono envía solo media (no se establece canal de datos). Para agregar datos, documentar nuevo evento y canal.
+## 4. WebRTC Detalles
+1 PeerConnection por sesión. STUN único `stun:stun.l.google.com:19302` (sin TURN). Operador, al recibir oferta, fuerza `addTransceiver('video','recvonly')` y `audio` para garantizar recepción aun si SDP llega `sendonly`. Solo media (sin DataChannel). Añadir datos => crear `dataChannel` en teléfono + `ondatachannel` en operador y documentar aquí.
 
 ## 5. POIs
-- Archivo fuente: `backend/data/pointsOfInterest.json` cargado en arranque.
-- Cálculo de distancia: función Haversine `getDistance` en `backend/index.js` (metros, radio Tierra = 6371e3).
-- Para modificar / añadir POIs, editar JSON y reiniciar servidor; no hay recarga dinámica.
+Fuente: `backend/data/pointsOfInterest.json`. Distancia: Haversine `getDistance` (R=6371e3 m). Editar JSON + reiniciar para cambios. Evento `poi-in-range` se dispara cada actualización de GPS dentro del radio (no se hace supresión de duplicados: manejar en UI si se añade lógica futura).
 
-## 6. Variables y Configuración
-- Backend puerto: `PORT` (default 3001). Servidor log: `[INIT]`, `[REGISTER]`, `[GPS]`, `[WebRTC]` tags.
-- Front operador requiere `VITE_BACKEND_URL` en tiempo de build/ejecución (ej: `http://localhost:3001`). Si falta, la conexión fallará silenciosamente.
-- `phone-app` usa URL fija `SERVER_URL` definida en `phone-app/script.js`; actualizar para despliegues.
+## 6. Configuración
+Backend puerto `PORT` (def 3001). Logs prefijos: `[INIT] [CONNECTION] [REGISTER] [GPS] [POI] [WebRTC] [DISCONNECT] [ERROR]` para grep. Operador requiere `.env` con `VITE_BACKEND_URL`. Teléfono usa constante `SERVER_URL` (actualmente apunta a despliegue Render); recordar ajustar en local. Falta script `start` en `backend/package.json` (opcional agregar). Cesium necesita permisos de red en build; el plugin ya configurado en Vite.
 
-## 7. Convenciones de Código
-- Logging semiestructurado con prefijos en mayúsculas entre corchetes para facilitar grep.
-- Validación defensiva de payloads (ver `gps-update` y `register-client`). Mantener antes de extender eventos.
-- Rooms Socket.IO: `'phone-room'` (único emisor) y `'operator-room'` (múltiples receptores). No crear rooms adicionales sin necesidad clara.
-- Estado global mínimo en objetos locales; evitar introducir singleton externos.
+## 7. Convenciones y Rooms
+Rooms: `'phone-room'` (el teléfono), `'operator-room'` (todos operadores). Validación defensiva de payloads (tipos numéricos en GPS, rol en registro). Advertencia multi-teléfono: si llega otro PHONE se sobrescribe `phoneSocketId` y se loguea warning (no soportado formalmente aún). Mantener estado simple sin singletons externos.
 
-## 8. Extensiones Seguras / Ejemplos
-- Añadir canal de datos: agregar en oferta una `dataChannel` lado teléfono y escuchar `ondatachannel` lado operador; propagar eventos via ese canal sin tocar señalización.
-- Añadir persistencia de POIs: introducir capa simple (p.ej. escribir JSON) pero proteger contra I/O sync en loop de eventos.
-- Multiples teléfonos: requeriría mapear `phoneSocketId` -> metadata y ajustar enrutamiento de ofertas; actualizar secciones 2 y 3.
+## 8. UI / UX Operador
+Ventana PIP draggable (mouse down excepto controles). Estados WebRTC reflejados en clases `pc-state-*`. Panel `GpsDisplay` formatea lat/lon con hemisferios. `InfoPanel` muestra detalle de POI activo (último en rango). Extensión futura: desduplicar o mantener lista de POIs activos.
 
-## 9. Build & Run (local)
-Backend: dentro de `backend/` ejecutar `npm install` y luego `node index.js` (añadir script `start` si se automatiza). Servirá `/phone`.
-Operador: en `operator-frontend/` definir `.env` con `VITE_BACKEND_URL=http://localhost:3001`, luego `npm install` y `npm run dev` (Vite).
-Teléfono: abrir `http://localhost:3001/phone/` desde un dispositivo móvil y presionar "Iniciar Transmisión".
+## 9. Extensiones Seguras
+TURN: añadir lista `iceServers` adicional y variable config. DataChannel: ver sección 4. Persistencia POIs: capa asíncrona (no sync I/O dentro handlers). Multi teléfonos: map `{ phoneSocketId -> meta }`, adaptar ruteo oferta/answer/ICE y ampliar eventos (documentar aquí).
 
-## 10. No Hacer / Anti-Pattern
-- No mezclar lógica WebRTC y cálculo de distancias en un mismo módulo; mantener separación actual.
-- No introducir dependencias pesadas de signaling: Socket.IO ya cumple.
-- No reemplazar Haversine por librerías para este tamaño de proyecto salvo justificación (performance innecesaria).
+## 10. Anti-Patrones
+No mover Haversine fuera sin necesidad. No introducir librerías de signaling adicionales. No bloquear loop con I/O sync (excepto carga inicial POIs aceptable). No agregar nuevos rooms arbitrarios sin actualizar sección 7.
 
-## 11. Documentar Cambios
-Al agregar eventos, actualizar sección 3 y ejemplos de flujo. Mantener este archivo <50 líneas efectivas (excluyendo títulos) — eliminar secciones obsoletas si crece.
+## 11. Actualización de Este Archivo
+Modificar inmediatamente al añadir evento, cambiar nombres, introducir TURN, multi teléfono o persistencia. Si crece demasiado, consolidar y recortar ejemplos redundantes.
 
 Fin.
