@@ -105,6 +105,7 @@ async function startWebRTCCall(socket, stream) {
     // Definir Handlers de la Conexión
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+            console.log('[DBG][PHONE][ICE] Candidato local generado');
             socket.emit('webrtc-ice-candidate', { candidate: event.candidate });
         }
     };
@@ -114,15 +115,26 @@ async function startWebRTCCall(socket, stream) {
         statusDiv.textContent = `Estado WebRTC: ${peerConnection.connectionState}`;
     };
 
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log('[DBG][PHONE][ICE] iceConnectionState:', peerConnection.iceConnectionState);
+    };
+
+    peerConnection.onsignalingstatechange = () => {
+        console.log('[DBG][PHONE][SIG] signalingState:', peerConnection.signalingState);
+    };
+
     // Añadir el Stream Local a la conexión
     stream.getTracks().forEach(track => {
         peerConnection.addTrack(track, stream);
+        console.log('[DBG][PHONE] Track añadida a PC:', track.kind, track.id, track.readyState);
     });
 
     try {
         // Crear y Enviar la Oferta
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
+        console.log('[DBG][PHONE][SDP][OFFER] Primeras 300 chars =>\n', offer.sdp.slice(0,300));
+        console.log('[DBG][PHONE] Senders actuales:', peerConnection.getSenders().map(s => ({ kind: s.track && s.track.kind, id: s.track && s.track.id, readyState: s.track && s.track.readyState })));
         socket.emit('webrtc-offer', { sdp: peerConnection.localDescription });
         statusDiv.textContent = 'Transmitiendo video y GPS.';
     } catch (error) {
@@ -135,6 +147,7 @@ async function handleWebRTCAnswer(payload) {
     if (peerConnection && payload.sdp) {
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            console.log('[DBG][PHONE][SDP][ANSWER] RemoteDescription aplicada. Contiene m=video?', /m=video/.test(peerConnection.remoteDescription.sdp));
         } catch (error) {
             console.error("Error al establecer la descripción remota:", error);
         }
@@ -145,6 +158,7 @@ async function handleNewICECandidate(payload) {
     if (peerConnection && payload.candidate) {
         try {
             await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            console.log('[DBG][PHONE][ICE] Candidato remoto añadido');
         } catch (error) {
             console.error("Error al añadir el candidato ICE:", error);
         }

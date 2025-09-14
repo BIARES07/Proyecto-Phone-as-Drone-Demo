@@ -57,20 +57,39 @@ function App() {
 
     // --- Lógica de WebRTC ---
     newSocket.on('webrtc-offer', async (payload) => {
-      console.log('Oferta WebRTC recibida');
+      console.log('[DBG][SIGNAL] Oferta WebRTC recibida. Type:', payload?.sdp?.type);
+      if (!payload?.sdp?.sdp) {
+        console.warn('[DBG][SIGNAL] Oferta sin SDP válida');
+        return;
+      }
+      console.log('[DBG][SDP][OFFER] Primeras 300 chars =>\n', payload.sdp.sdp.slice(0,300));
       peerConnectionRef.current = createPeerConnection(newSocket, setVideoStream);
 
+      // Fuerza transceivers para asegurar recepción aun si la oferta marca sendonly
+      try {
+        peerConnectionRef.current.addTransceiver('video', { direction: 'recvonly' });
+        peerConnectionRef.current.addTransceiver('audio', { direction: 'recvonly' });
+        console.log('[DBG][PC] Transceivers añadidos (video/audio recvonly)');
+      } catch (e) {
+        console.warn('[DBG][PC] Error añadiendo transceivers (posible no necesario):', e);
+      }
+
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      
+      console.log('[DBG][PC] RemoteDescription establecida. Contiene m=video?', /m=video/.test(peerConnectionRef.current.remoteDescription.sdp));
+      console.log('[DBG][PC] Receivers tras remoteDescription:', peerConnectionRef.current.getReceivers().map(r => ({ kind: r.track?.kind, trackState: r.track?.readyState })));
+
       const answer = await peerConnectionRef.current.createAnswer();
+      console.log('[DBG][SDP][ANSWER] Generada. Primeras 300 chars =>\n', answer.sdp.slice(0,300));
       await peerConnectionRef.current.setLocalDescription(answer);
+      console.log('[DBG][PC] LocalDescription establecida.');
 
       newSocket.emit('webrtc-answer', { sdp: answer });
+      console.log('[DBG][SIGNAL] Answer enviada al backend.');
     });
 
     newSocket.on('webrtc-ice-candidate', (payload) => {
       if (peerConnectionRef.current && payload.candidate) {
-        console.log('Añadiendo candidato ICE');
+        console.log('[DBG][ICE] Añadiendo candidato ICE remoto');
         peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
       }
     });
