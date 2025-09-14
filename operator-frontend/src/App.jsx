@@ -56,33 +56,41 @@ function App() {
     });
 
     newSocket.on('gps-from-phone', (data) => {
-      // data: {lat, lon, alt?, heading?, accuracy?, speed?, ts?}
       try {
         const prev = phonePosition;
-        let headingSource = 'gps';
-        let heading = (typeof data.heading === 'number') ? data.heading : null;
+        let heading = (typeof data.heading === 'number' && !isNaN(data.heading)) ? data.heading : null;
+        let headingSource = heading != null ? 'gps' : 'none';
 
-        if ((heading == null || isNaN(heading)) && prev) {
-          // Derivar bearing entre prev y actual si movimiento significativo
-            const distLat = Math.abs(data.lat - prev.lat);
-            const distLon = Math.abs(data.lon - prev.lon);
-            if (distLat > 1e-6 || distLon > 1e-6) { // ~0.11 m escala lat, más en lon según lat
-              const derived = computeBearing(prev.lat, prev.lon, data.lat, data.lon);
-              headingSource = 'derived';
-              heading = derived;
-            }
+        // Distancia Haversine rápida
+        let distanceMeters = 0;
+        if (prev) {
+          const R = 6371e3;
+            const φ1 = prev.lat * Math.PI/180;
+            const φ2 = data.lat * Math.PI/180;
+            const dφ = (data.lat - prev.lat) * Math.PI/180;
+            const dλ = (data.lon - prev.lon) * Math.PI/180;
+            const a = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distanceMeters = R * c;
         }
 
-        // Suavizado de heading si tenemos previo con heading calculado
+        // Fallback: derivar rumbo si no hay heading GPS y nos movimos > 1 m
+        if (heading == null && prev && distanceMeters > 1) {
+          heading = computeBearing(prev.lat, prev.lon, data.lat, data.lon);
+          headingSource = 'derived';
+        }
+
+        // Suavizado si teníamos heading previo
         if (heading != null && prev?.heading != null) {
           heading = smoothAngle(prev.heading, heading, 0.35);
         }
 
-        const enriched = { ...data, heading, headingSource };
+        const enriched = { ...data, heading, headingSource, distanceFromPrev: distanceMeters };
+        console.log('[DBG][GPS raw]', enriched);
         setPhonePosition(enriched);
       } catch (e) {
         console.warn('[GPS] Error procesando GPS entrante:', e);
-        setPhonePosition(data); // fallback básico
+        setPhonePosition(data);
       }
     });
 

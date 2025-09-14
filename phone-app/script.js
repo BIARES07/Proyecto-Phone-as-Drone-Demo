@@ -92,6 +92,7 @@ function activateGPS(socket) {
                 ts: Date.now()
             };
             socket.emit('gps-update', gpsData);
+            console.log('[PHONE][GPS sent]', gpsData);
         },
         (error) => {
             console.error('Error de GPS:', error);
