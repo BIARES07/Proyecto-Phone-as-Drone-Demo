@@ -1,5 +1,5 @@
 // webrtc.js
-export const createPeerConnection = (socket, setVideoStream) => {
+export const createPeerConnection = (socket, setVideoStream, onConnStateChange) => {
   console.log('[DBG][PC] Creando RTCPeerConnection (operador)');
   const peerConnection = new RTCPeerConnection({
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -37,7 +37,9 @@ export const createPeerConnection = (socket, setVideoStream) => {
   };
 
   peerConnection.onconnectionstatechange = () => {
-    console.log('[DBG][PC] Connection state general:', peerConnection.connectionState);
+    const state = peerConnection.connectionState;
+    console.log('[DBG][PC] Connection state general:', state);
+    if (onConnStateChange) onConnStateChange(state);
   };
 
   return peerConnection;

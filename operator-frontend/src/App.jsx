@@ -14,6 +14,12 @@ function App() {
   const [activePOI, setActivePOI] = useState(null);
   const [videoStream, setVideoStream] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [pipFullscreen, setPipFullscreen] = useState(false);
+  const [pipHidden, setPipHidden] = useState(false);
+  const [connectionState, setConnectionState] = useState('new');
+
+  const videoContainerRef = useRef(null);
+  const dragDataRef = useRef({ dragging:false, offsetX:0, offsetY:0 });
 
   // Ref para mantener la instancia de RTCPeerConnection
   const peerConnectionRef = useRef(null);
@@ -45,6 +51,7 @@ function App() {
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
+      setConnectionState('disconnected');
     });
 
     newSocket.on('gps-from-phone', (data) => {
@@ -63,7 +70,7 @@ function App() {
         return;
       }
       console.log('[DBG][SDP][OFFER] Primeras 300 chars =>\n', payload.sdp.sdp.slice(0,300));
-      peerConnectionRef.current = createPeerConnection(newSocket, setVideoStream);
+  peerConnectionRef.current = createPeerConnection(newSocket, setVideoStream, (state)=> setConnectionState(state));
 
       // Fuerza transceivers para asegurar recepción aun si la oferta marca sendonly
       try {
@@ -95,19 +102,74 @@ function App() {
     });
 
     // --- Función de limpieza ---
+    const keyHandler = (e) => {
+      if (e.key === 'v') setPipHidden(h=>!h);
+      if (e.key === 'f') setPipFullscreen(f=>!f);
+    };
+    window.addEventListener('keydown', keyHandler);
+
     return () => {
       console.log('Desconectando socket...');
       newSocket.disconnect();
+      window.removeEventListener('keydown', keyHandler);
     };
   }, []); // El array vacío asegura que se ejecute solo una vez
+
+  // Drag handlers
+  useEffect(()=>{
+    const el = videoContainerRef.current;
+    if(!el) return;
+    const onDown = (e) => {
+      if (e.target.getAttribute('data-drag-exclude') === 'true') return;
+      dragDataRef.current.dragging = true;
+      const rect = el.getBoundingClientRect();
+      dragDataRef.current.offsetX = e.clientX - rect.left;
+      dragDataRef.current.offsetY = e.clientY - rect.top;
+      el.style.transition='none';
+    };
+    const onMove = (e) => {
+      if(!dragDataRef.current.dragging) return;
+      const nx = e.clientX - dragDataRef.current.offsetX;
+      const ny = e.clientY - dragDataRef.current.offsetY;
+      const maxX = window.innerWidth - el.offsetWidth;
+      const maxY = window.innerHeight - el.offsetHeight;
+      el.style.left = Math.min(Math.max(0,nx),maxX)+ 'px';
+      el.style.top = Math.min(Math.max(0,ny),maxY)+ 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    };
+    const onUp = () => { dragDataRef.current.dragging=false; el.style.transition=''; };
+    el.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return ()=>{
+      el.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [videoContainerRef]);
+
+  const pipClasses = [
+    'video-container',
+    pipFullscreen ? 'pip-fullscreen':'',
+    pipHidden ? 'pip-hidden':'',
+    connectionState ? `pc-state-${connectionState}` : ''
+  ].filter(Boolean).join(' ');
+
+  const toggleFullscreen = () => setPipFullscreen(f=>!f);
+  const toggleHidden = () => setPipHidden(h=>!h);
 
   // --- RENDER ---
   return (
     <div className="app-container">
-      <GpsDisplay position={phonePosition} /> {/* Añadir el componente aquí */}
-      <div className="video-container">
+      <GpsDisplay position={phonePosition} />
+      <div className={pipClasses} ref={videoContainerRef}>
+        <div className="pip-controls" data-drag-exclude="true">
+          <button onClick={toggleHidden} data-drag-exclude="true" title="Mostrar/Ocultar (v)">{pipHidden ? 'Mostrar' : 'Ocultar'}</button>
+          <button onClick={toggleFullscreen} data-drag-exclude="true" title="Fullscreen (f)">{pipFullscreen ? 'Normal' : 'Full'}</button>
+        </div>
         <VideoStream stream={videoStream} />
-        {!isConnected && <div className="status-overlay">Esperando conexión del teléfono...</div>}
+        {!isConnected && <div className="status-overlay">Esperando conexión del dispositivo...</div>}
       </div>
       <div className="map-container">
         <MapView position={phonePosition} />

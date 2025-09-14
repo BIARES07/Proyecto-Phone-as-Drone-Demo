@@ -45,6 +45,51 @@ body, html, #root {
   transition: width .25s ease, height .25s ease;
 }
 
+/* Controles PiP */
+.pip-controls {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  gap: 4px;
+  z-index: 20;
+}
+.pip-controls button {
+  background: rgba(0,0,0,0.55);
+  color: #eee;
+  border: 1px solid #444;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  backdrop-filter: blur(2px);
+}
+.pip-controls button:hover { background: rgba(0,0,0,0.8); }
+
+/* Fullscreen PiP */
+.pip-fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-radius: 0 !important;
+  transition: none !important;
+}
+
+/* PiP oculto (solo controles visibles mínimos) */
+.pip-hidden video { display: none; }
+.pip-hidden { width: 140px !important; height: 48px !important; }
+.pip-hidden .pip-controls { top: 6px; left: 6px; }
+
+/* Bordes según estado PC */
+.pc-state-new { border-color: #888; }
+.pc-state-connecting { border-color: #f1c40f; }
+.pc-state-connected { border-color: #2ecc71; }
+.pc-state-disconnected, .pc-state-failed { border-color: #e74c3c; }
+.pc-state-closed { border-color: #555; }
+
 .video-container:hover {
   width: 420px;
   height: 236px;
