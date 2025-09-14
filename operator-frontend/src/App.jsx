@@ -5,6 +5,7 @@ import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
 import GpsDisplay from './components/GpsDisplay'; // Importar el nuevo componente
 import { createPeerConnection } from './lib/webrtc';
+import { computeBearing, smoothAngle } from './lib/geo';
 import './App.css';
 
 function App() {
@@ -55,7 +56,34 @@ function App() {
     });
 
     newSocket.on('gps-from-phone', (data) => {
-      setPhonePosition(data);
+      // data: {lat, lon, alt?, heading?, accuracy?, speed?, ts?}
+      try {
+        const prev = phonePosition;
+        let headingSource = 'gps';
+        let heading = (typeof data.heading === 'number') ? data.heading : null;
+
+        if ((heading == null || isNaN(heading)) && prev) {
+          // Derivar bearing entre prev y actual si movimiento significativo
+            const distLat = Math.abs(data.lat - prev.lat);
+            const distLon = Math.abs(data.lon - prev.lon);
+            if (distLat > 1e-6 || distLon > 1e-6) { // ~0.11 m escala lat, más en lon según lat
+              const derived = computeBearing(prev.lat, prev.lon, data.lat, data.lon);
+              headingSource = 'derived';
+              heading = derived;
+            }
+        }
+
+        // Suavizado de heading si tenemos previo con heading calculado
+        if (heading != null && prev?.heading != null) {
+          heading = smoothAngle(prev.heading, heading, 0.35);
+        }
+
+        const enriched = { ...data, heading, headingSource };
+        setPhonePosition(enriched);
+      } catch (e) {
+        console.warn('[GPS] Error procesando GPS entrante:', e);
+        setPhonePosition(data); // fallback básico
+      }
     });
 
     newSocket.on('poi-in-range', (poi) => {

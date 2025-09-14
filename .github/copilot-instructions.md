@@ -8,12 +8,12 @@ Resumen vivo de arquitectura y convenciones del proyecto Phone-as-Drone Demo. Ma
 
 ## 2. Flujo Core
 Registro: PHONE -> `register-client` guarda `phoneSocketId`; OPERATOR -> entra a `operator-room` y recibe `phone-connected` si aplica.
-GPS: PHONE -> `gps-update` => broadcast `gps-from-phone`; si dentro de radio POI => `poi-in-range`.
+GPS: PHONE -> `gps-update` (con `heading`) => broadcast `gps-from-phone`; si dentro de radio POI => `poi-in-range`.
 WebRTC: PHONE crea `webrtc-offer` -> operadores; operador crea `webrtc-answer` -> teléfono. ICE: cada lado -> backend -> lado opuesto (`operator-room` / `phone-room`). Al desconectar teléfono => `phone-disconnected` y operador limpia PeerConnection.
 
 ## 3. Eventos Socket.IO
-Cliente→Servidor: `register-client {role:'PHONE'|'OPERATOR'}` | `gps-update {lat,lon,alt?}` | `webrtc-offer {sdp}` | `webrtc-answer {sdp}` (solo operador) | `webrtc-ice-candidate {candidate}`.
-Servidor→Operador: `phone-connected` | `phone-disconnected` | `gps-from-phone {lat,lon,alt?}` | `poi-in-range {name,latitude,longitude,radius,info}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}`.
+Cliente→Servidor: `register-client {role:'PHONE'|'OPERATOR'}` | `gps-update {lat,lon,alt?,heading?}` | `webrtc-offer {sdp}` | `webrtc-answer {sdp}` (solo operador) | `webrtc-ice-candidate {candidate}`.
+Servidor→Operador: `phone-connected` | `phone-disconnected` | `gps-from-phone {lat,lon,alt?,heading?}` | `poi-in-range {name,latitude,longitude,radius,info}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}`.
 Servidor→Teléfono: `webrtc-answer {sdp}` | `webrtc-ice-candidate {candidate}`.
 
 ## 4. WebRTC Detalles

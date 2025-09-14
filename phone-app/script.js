@@ -81,8 +81,16 @@ function activateGPS(socket) {
 
     navigator.geolocation.watchPosition(
         (position) => {
-            const { latitude: lat, longitude: lon, altitude: alt, heading } = position.coords;
-            const gpsData = { lat, lon, alt, heading };
+            const { latitude: lat, longitude: lon, altitude: alt, heading, accuracy, speed } = position.coords;
+            const gpsData = { 
+                lat, 
+                lon, 
+                alt: (typeof alt === 'number' ? alt : null),
+                heading: (typeof heading === 'number' ? heading : null),
+                accuracy: (typeof accuracy === 'number' ? accuracy : null),
+                speed: (typeof speed === 'number' ? speed : null),
+                ts: Date.now()
+            };
             socket.emit('gps-update', gpsData);
         },
         (error) => {

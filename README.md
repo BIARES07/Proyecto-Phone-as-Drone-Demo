@@ -4,8 +4,8 @@ Proyecto demostrativo que convierte un teléfono en una "cámara/drone" improvis
 
 ## 1. Características Clave
 - Streaming WebRTC (1 teléfono -> múltiples operadores).
-- Telemetría GPS en tiempo real + detección de proximidad a Puntos de Interés (POIs).
-- Mapa 3D (Cesium/Resium) mostrando posición del dispositivo.
+- Telemetría GPS en tiempo real (posición y rumbo) + detección de proximidad a Puntos de Interés (POIs).
+- Mapa 3D (Cesium/Resium) mostrando posición y orientación del dispositivo con un ícono de flecha.
 - Ventana de video PIP draggable, atajos: `v` (mostrar/ocultar), `f` (fullscreen/normal).
 - Consola embebida en el teléfono para depurar (límite 500 logs, toggle Mostrar/Ocultar).
 - Arquitectura simple sin base de datos (estado en memoria, reinicio = limpieza).
@@ -27,7 +27,7 @@ README.md           # Este documento
 ## 3. Flujo Simplificado
 1. Teléfono se conecta y emite `register-client {role:'PHONE'}` → el servidor guarda `phoneSocketId` y avisa a operadores (`phone-connected`).
 2. Operador se conecta con `register-client {role:'OPERATOR'}` y entra a `operator-room`.
-3. Teléfono captura media + GPS. Cada fix GPS → `gps-update` → broadcast `gps-from-phone`. Si dentro de radio de algún POI → `poi-in-range`.
+3. Teléfono captura media + GPS. Cada fix GPS → `gps-update` (con lat, lon, alt, heading) → broadcast `gps-from-phone`. Si dentro de radio de algún POI → `poi-in-range`.
 4. Teléfono crea `webrtc-offer` → operadores. Operador crea `webrtc-answer` → teléfono. ICE candidates cruzados por Socket.IO.
 5. Al desconectarse el teléfono → `phone-disconnected` → los operadores limpian PeerConnection y UI.
 
@@ -79,16 +79,34 @@ Actualmente:
 - Distancias: Haversine (metros). Se evalúa cada `gps-update` y se emite `poi-in-range` sin supresión de duplicados (UI recibe cada tick en rango).
 - Modificar: editar JSON + reiniciar backend.
 
-## 10. UI Operador
+## 10. Telemetría GPS (Campos Nuevos)
+Desde la actualización reciente, el payload emitido por el teléfono en `gps-update` incluye:
+```
+{
+  lat: number,
+  lon: number,
+  alt: number|null,
+  heading: number|null,      // 0-360 (desde norte, horario) si el navegador lo provee
+  accuracy: number|null,     // metros (Horizontal Accuracy)
+  speed: number|null,        // m/s
+  ts: number                 // timestamp epoch ms
+}
+```
+En el operador:
+- Si `heading` es nulo y existe un fix previo, se deriva un rumbo (bearing) entre la posición anterior y la nueva, etiquetado como `headingSource: 'derived'`.
+- Se aplica suavizado angular (EMA) para evitar saltos bruscos.
+- La orientación de la flecha ahora usa un quaternion (HeadingPitchRoll) en lugar de rotación 2D, por lo que mantiene rumbo geográfico al rotar la cámara.
+
+## 11. UI Operador
 - Ventana PIP: arrastrable (mousedown sobre el área excepto botones). Clases dinámicas de estado WebRTC `pc-state-<state>`.
 - Teclas: `v` toggle visibilidad PIP, `f` fullscreen.
 - Panel `GpsDisplay`: formatea con hemisferios (N/S/E/W). `InfoPanel`: último POI en rango.
 
-## 11. Consola Embebida (Teléfono)
+## 12. Consola Embebida (Teléfono)
 - Intercepta `console.log|warn|error|debug`, muestra timestamp ISO parcial.
 - Límite 500 entradas (FIFO). Botones: Mostrar/Ocultar, Limpiar. Auto-expande si aparecen errores iniciales.
 
-## 12. Extensiones Futuras Sugeridas
+## 13. Extensiones Futuras Sugeridas
 | Idea | Notas |
 |------|-------|
 | TURN Servers | Añadir a `iceServers` y variable de entorno. |
@@ -97,24 +115,24 @@ Actualmente:
 | Persistencia POIs | Capa asíncrona (no I/O bloqueante en handlers). |
 | Lista histórica POIs | Acumular eventos y evitar duplicados consecutivos. |
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 | Síntoma | Causa probable | Acción |
 |---------|----------------|--------|
 | Operador no ve video | Oferta no llega / STUN bloqueado | Revisar consola operador y teléfono, abrir puertos UDP, probar otra red. |
-| GPS no aparece | Permiso denegado en móvil | Revisar ajustes del navegador/SO, recargar. |
+| GPS no aparece o flecha no rota | Permiso denegado / GPS sin señal de rumbo | Revisar ajustes del navegador/SO, recargar, moverse para obtener señal de rumbo. |
 | `phone-disconnected` frecuente | WiFi inestable / pantalla suspendida | Mantener pantalla activa, probar alimentación. |
 | ICE se queda en `checking` | Falta TURN detrás de NAT simétrica | Añadir servidor TURN. |
 | Sin POIs en logs | JSON inválido o radius muy pequeño | Ver logs backend `[ERROR]` / ajustar `radius`. |
 
-## 14. Seguridad / Consideraciones
+## 15. Seguridad / Consideraciones
 - Sin autenticación: no exponer públicamente sin capa adicional (token simple o auth reversa). 
 - CORS abierto `*` (cerrar en producción). 
 - Media sin cifrado adicional: WebRTC ya cifra SRTP; inspeccionar si se introducen proxys.
 
-## 15. Licencia
+## 16. Licencia
 Definir licencia (ej. MIT) antes de divulgar públicamente.
 
-## 16. Referencia Rápida de Eventos
+## 17. Referencia Rápida de Eventos
 ```
 Client→Server: register-client | gps-update | webrtc-offer | webrtc-answer | webrtc-ice-candidate
 Server→Operator: phone-connected | phone-disconnected | gps-from-phone | poi-in-range | webrtc-offer | webrtc-ice-candidate
