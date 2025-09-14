@@ -34,6 +34,8 @@ body, html, #root {
 .map-container {
   background-color: #2a2a2a;
   overflow: hidden; /* Cesium maneja su propio tamaño */
+  position: relative; /* IMPORTANTE: limita el Viewer 'full' a esta celda del grid */
+  /* outline: 1px solid #0f0; */
 }
 
 /* Overlay de estado para el video */
