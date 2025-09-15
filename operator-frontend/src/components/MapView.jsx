@@ -58,25 +58,66 @@ const MapView = ({ position }) => {
   // Handler toggle
   const toggleTileset = useCallback(() => setShowTileset(v => !v), []);
 
+  // Diagnóstico: verificar tileset.json cuando se muestra
+  useEffect(() => {
+    if (!showTileset) return;
+    (async () => {
+      try {
+        console.log('[Tileset Debug] Verificando tileset.json para asset', ASSET_ID_TILESET);
+        const resPromise = IonResource.fromAssetId(ASSET_ID_TILESET);
+        const resolved = await resPromise; // IonResource es promise-like
+        const baseUrl = typeof resolved === 'string' ? resolved : resolved._url;
+        console.log('[Tileset Debug] URL base resuelta:', baseUrl);
+        const resp = await fetch(baseUrl, { cache: 'no-store' });
+        console.log('[Tileset Debug] tileset.json status:', resp.status);
+        if (!resp.ok) {
+          console.error('[Tileset Debug] tileset.json no OK', resp.status);
+        } else {
+          const json = await resp.json();
+            console.log('[Tileset Debug] Root geometricError:', json.root?.geometricError, 'children:', json.root?.children?.length);
+        }
+      } catch (e) {
+        console.error('[Tileset Debug] Error revisando tileset.json', e);
+      }
+    })();
+  }, [showTileset]);
+
   return (
     <Viewer full ref={viewerRef}>
       {/* UI flotante simple para controlar visibilidad del tileset */}
-      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.55)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: '#fff' }}>
-        <label style={{ cursor: 'pointer' }}>
+      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.55)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: '#fff', display: 'flex', alignItems: 'center' }}>
+        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <input type="checkbox" checked={showTileset} onChange={toggleTileset} style={{ marginRight: 6 }} />
           Modelo 3D (Tileset {ASSET_ID_TILESET})
         </label>
+        <button
+          onClick={() => {
+            const viewer = viewerRef.current?.cesiumElement;
+            if (!viewer) return;
+            // Intentar localizar tileset entre primitives
+            const primitives = viewer.scene.primitives._primitives || [];
+            const candidate = primitives.find(p => p.asset?.id === ASSET_ID_TILESET) || primitives.find(p => p._root); // heurística
+            if (candidate) {
+              viewer.flyTo(candidate).catch(e => console.warn('[Tileset] flyTo cancelado', e));
+            } else {
+              console.warn('[Tileset] No se encontró tileset para flyTo aún');
+            }
+          }}
+          style={{ marginLeft: 10, background: '#1976d2', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}
+        >Ir al modelo</button>
       </div>
 
       {showTileset && (
         <Cesium3DTileset
           key={ASSET_ID_TILESET}
           url={IonResource.fromAssetId(ASSET_ID_TILESET)}
-          // Ajustar para rendimiento/calidad. Menor = más detalle.
           maximumScreenSpaceError={8}
           onReady={(tileset) => {
-            // eslint-disable-next-line no-console
-            console.log('[Tileset] Listo. BoundingSphere radius:', tileset.boundingSphere.radius.toFixed(2));
+            console.log('[Tileset] READY. BoundingSphere radius:', tileset.boundingSphere.radius.toFixed(2));
+            const viewer = viewerRef.current?.cesiumElement;
+            if (viewer) {
+              viewer.flyTo(tileset).catch(e => console.warn('[Tileset] flyTo cancelado:', e));
+            }
           }}
         />
       )}
