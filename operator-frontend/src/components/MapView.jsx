@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Viewer, Entity, Cesium3DTileset } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Ion, IonResource } from 'cesium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Ion } from 'cesium';
 
 // Inicializar token Ion (solo una vez). Si no existe variable, loguear advertencia.
 if (Ion.defaultAccessToken == null) {
@@ -58,30 +58,6 @@ const MapView = ({ position }) => {
   // Handler toggle
   const toggleTileset = useCallback(() => setShowTileset(v => !v), []);
 
-  // Diagnóstico: verificar tileset.json cuando se muestra
-  useEffect(() => {
-    if (!showTileset) return;
-    (async () => {
-      try {
-        console.log('[Tileset Debug] Verificando tileset.json para asset', ASSET_ID_TILESET);
-        const resPromise = IonResource.fromAssetId(ASSET_ID_TILESET);
-        const resolved = await resPromise; // IonResource es promise-like
-        const baseUrl = typeof resolved === 'string' ? resolved : resolved._url;
-        console.log('[Tileset Debug] URL base resuelta:', baseUrl);
-        const resp = await fetch(baseUrl, { cache: 'no-store' });
-        console.log('[Tileset Debug] tileset.json status:', resp.status);
-        if (!resp.ok) {
-          console.error('[Tileset Debug] tileset.json no OK', resp.status);
-        } else {
-          const json = await resp.json();
-            console.log('[Tileset Debug] Root geometricError:', json.root?.geometricError, 'children:', json.root?.children?.length);
-        }
-      } catch (e) {
-        console.error('[Tileset Debug] Error revisando tileset.json', e);
-      }
-    })();
-  }, [showTileset]);
-
   return (
     <Viewer full ref={viewerRef}>
       {/* UI flotante simple para controlar visibilidad del tileset */}
@@ -110,13 +86,19 @@ const MapView = ({ position }) => {
       {showTileset && (
         <Cesium3DTileset
           key={ASSET_ID_TILESET}
-          url={IonResource.fromAssetId(ASSET_ID_TILESET)}
+          assetId={ASSET_ID_TILESET}
           maximumScreenSpaceError={8}
           onReady={(tileset) => {
             console.log('[Tileset] READY. BoundingSphere radius:', tileset.boundingSphere.radius.toFixed(2));
             const viewer = viewerRef.current?.cesiumElement;
             if (viewer) {
               viewer.flyTo(tileset).catch(e => console.warn('[Tileset] flyTo cancelado:', e));
+            }
+          }}
+          onError={(error) => {
+            console.error('[Tileset] Error cargando asset', ASSET_ID_TILESET, error);
+            if (error && /access/i.test(String(error))) {
+              console.warn('[Tileset] Verifica que el token tenga acceso al asset y que no esté archivado.');
             }
           }}
         />
