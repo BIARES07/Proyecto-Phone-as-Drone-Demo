@@ -13,7 +13,8 @@ if (Ion.defaultAccessToken == null) {
   }
 }
 
-const ASSET_ID_TILESET = 3723281; // Modelo 3D Tiles proporcionado
+const ASSET_ID_TILESET = 3723281; // Modelo 3D Tiles principal
+const TEST_ASSET_PUBLIC = 43978; // Asset público de Cesium (Melbourne) para diagnóstico
 
 const MapView = ({ position }) => {
   const viewerRef = useRef(null);
@@ -21,8 +22,10 @@ const MapView = ({ position }) => {
   const [showTileset, setShowTileset] = useState(true);
   const tilesetRef = useRef(null);
   const tilesetLoadingRef = useRef(false);
-  const [tilesetStatus, setTilesetStatus] = useState('idle'); // idle | waiting-viewer | loading | ready | error | hidden
+  const [tilesetStatus, setTilesetStatus] = useState('idle'); // idle | waiting-viewer | loading | ready | error | hidden | fallback
   const [tilesetMessage, setTilesetMessage] = useState('');
+  const [usingFallback, setUsingFallback] = useState(false);
+  const [publicTestResult, setPublicTestResult] = useState(null); // null | 'ok' | 'fail'
   // La API de geolocalización devuelve el rumbo en grados desde el norte, en sentido horario.
   // Cesium rota en radianes en sentido antihorario desde el este.
   // Convertimos grados a radianes y ajustamos el offset.
@@ -126,9 +129,43 @@ const MapView = ({ position }) => {
         setTilesetMessage('');
         viewer.flyTo(tileset).catch(e => console.warn('[Tileset] flyTo cancelado', e));
       } catch (e) {
-        console.error('[Tileset] Error carga (poll)', e);
-        setTilesetStatus('error');
-        setTilesetMessage('Error cargando modelo (ver consola).');
+        console.error('[Tileset] Error carga (poll) primary asset', e);
+        // Intentar asset público para diagnóstico
+        try {
+          console.log('[Tileset] Probando asset público', TEST_ASSET_PUBLIC);
+          const testTileset = await Cesium3DTileset.fromIonAssetId(TEST_ASSET_PUBLIC);
+          await testTileset.readyPromise;
+          setPublicTestResult('ok');
+          // Añadirlo temporal para que usuario vea que sí funciona
+          viewer.scene.primitives.add(testTileset);
+          console.log('[Tileset] Asset público cargado OK -> el problema es específico del asset', ASSET_ID_TILESET);
+          setTilesetStatus('error');
+          setTilesetMessage('Asset principal falla. Público OK. Re-tile / duplicar en ion.');
+        } catch (et) {
+          console.error('[Tileset] Falló también asset público', et);
+          setPublicTestResult('fail');
+          // Fallback: obtener endpoint manual del asset principal y crear tileset manual
+          try {
+            console.log('[Tileset] Intentando fallback endpoint para asset', ASSET_ID_TILESET);
+            const endpointResp = await fetch(`https://api.cesium.com/v1/assets/${ASSET_ID_TILESET}/endpoint?access_token=${Ion.defaultAccessToken}`);
+            if (!endpointResp.ok) throw new Error('Endpoint HTTP '+endpointResp.status);
+            const endpointJson = await endpointResp.json();
+            if (!endpointJson.url) throw new Error('Endpoint sin url');
+            const manual = new Cesium3DTileset({ url: endpointJson.url });
+            viewer.scene.primitives.add(manual);
+            await manual.readyPromise;
+            tilesetRef.current = manual;
+            setTilesetStatus('fallback');
+            setTilesetMessage('Modelo cargado con fallback.');
+            setUsingFallback(true);
+            viewer.flyTo(manual).catch(()=>{});
+            console.log('[Tileset] Fallback cargado correctamente');
+          } catch (ef) {
+            console.error('[Tileset] Fallback endpoint también falló', ef);
+            setTilesetStatus('error');
+            setTilesetMessage('Error irrecoverable. Ver consola / re-tile.');
+          }
+        }
       } finally {
         tilesetLoadingRef.current = false;
       }
@@ -163,6 +200,14 @@ const MapView = ({ position }) => {
         {tilesetStatus !== 'ready' && tilesetStatus !== 'hidden' && (
           <span style={{ marginLeft: 10, color: '#ffd54f' }}>
             {tilesetMessage || tilesetStatus}
+          </span>
+        )}
+        {usingFallback && (
+          <span style={{ marginLeft: 10, color: '#90caf9' }}>(fallback)</span>
+        )}
+        {publicTestResult && (
+          <span style={{ marginLeft: 10, color: publicTestResult==='ok' ? '#4caf50' : '#ff8a65' }}>
+            Test público: {publicTestResult}
           </span>
         )}
       </div>
