@@ -31,6 +31,10 @@ Rooms: `'phone-room'` (el teléfono), `'operator-room'` (todos operadores). Vali
 ## 8. UI / UX Operador
 Ventana PIP draggable (mouse down excepto controles). Estados WebRTC reflejados en clases `pc-state-*`. Panel `GpsDisplay` formatea lat/lon con hemisferios. `InfoPanel` muestra detalle de POI activo (último en rango). Extensión futura: desduplicar o mantener lista de POIs activos.
 
+## DevModelEditor (Solo Desarrollo)
+- En `operator-frontend/src/components/DevModelEditor.jsx` (+`.css`), existe un editor de modelos 3D que permite añadir múltiples archivos `.glb`, ajustar posición (lon, lat, altura) y orientación (heading, pitch, roll), y copiar el fragmento de JSX generado.
+- Solo disponible en modo desarrollo (`npm run dev`). Estos archivos están incluidos en `.gitignore` y no forman parte del bundle de producción.
+
 ## 9. Extensiones Seguras
 TURN: añadir lista `iceServers` adicional y variable config. DataChannel: ver sección 4. Persistencia POIs: capa asíncrona (no sync I/O dentro handlers). Multi teléfonos: map `{ phoneSocketId -> meta }`, adaptar ruteo oferta/answer/ICE y ampliar eventos (documentar aquí).
 

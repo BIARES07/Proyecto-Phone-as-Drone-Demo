@@ -21,8 +21,7 @@ const FixedCallesModel = () => {
       orientation={orientation}
       model={{
         uri: '/calles.glb',
-        minimumPixelSize: 128,
-        maximumScale: 20000,
+        scale: 1,
       }}
     />
   );

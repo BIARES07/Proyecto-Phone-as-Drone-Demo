@@ -54,6 +54,17 @@ npm run dev     # Vite mostrará la URL (ej: http://localhost:5173)
 # 3. Teléfono
 # Desde el dispositivo móvil abrir: http://<IP_LOCAL_PC>:3001/phone/
 # (Reemplazar <IP_LOCAL_PC> por la IP LAN del equipo, ej: 192.168.1.50)
+  
+### Editor de Modelos (Solo Desarrollo)
+Al ejecutar la aplicación del operador con `npm run dev`, se habilita un editor de modelos 3D en la esquina superior derecha.
+Este **DevModelEditor** permite:
+- Añadir nuevos archivos `.glb` dinámicamente.
+- Ajustar posición (lon, lat, altura) y orientación (heading, pitch, roll).
+- Copiar el fragmento de JSX generado para integrar manualmente el modelo en el código.
+
+Los archivos `src/components/DevModelEditor.jsx` y `src/components/DevModelEditor.css` están incluidos en `.gitignore`, por lo que:
+- **No** se suben al repositorio de GitHub.
+- **No** aparecen en el paquete de producción (Netlify / Render).
 ```
 Sugerencia: Desactivar ahorro de energía / bloqueo de pantalla al probar GPS continuo.
 
