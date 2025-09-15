@@ -1,11 +1,52 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { Viewer, Entity } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference } from 'cesium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll } from 'cesium';
 
-const MapView = ({ position }) => {
+// 1. Modelo Fijo: Componente para tu modelo 'calles.glb' con su posición y rotación hardcodeadas.
+const FixedCallesModel = () => {
+  const position = Cartesian3.fromDegrees(-66.767352303, 10.1048760366, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(91),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+
+  return (
+    <Entity
+      name="Calles Model"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/calles.glb',
+        minimumPixelSize: 128,
+        maximumScale: 20000,
+      }}
+    />
+  );
+};
+
+
+const MapView = ({ position, editableModels = [] }) => {
   const viewerRef = useRef(null);
   const entityId = 'phone-entity';
   const cartesianPos = position ? Cartesian3.fromDegrees(position.lon, position.lat, 0) : undefined;
+
+  const modelPosition = useMemo(() => {
+    if (!modelParams) return null;
+    return Cartesian3.fromDegrees(modelParams.lon, modelParams.lat, modelParams.height);
+  }, [modelParams]);
+
+  const modelOrientation = useMemo(() => {
+    if (!modelPosition || !modelParams) return null;
+    const heading = CesiumMath.toRadians(modelParams.heading);
+    const pitch = CesiumMath.toRadians(modelParams.pitch);
+    const roll = CesiumMath.toRadians(modelParams.roll);
+    const hpr = new HeadingPitchRoll(heading, pitch, roll);
+    return Transforms.headingPitchRollQuaternion(modelPosition, hpr);
+  }, [modelPosition, modelParams]);
 
   const headingLinePositions = useMemo(() => {
     if (!position || position.heading == null || position.headingSource === 'none') return null;
@@ -73,6 +114,33 @@ const MapView = ({ position }) => {
           )}
         </>
       )}
+
+      {/* 2. Render del modelo fijo y los modelos editables */}
+      <FixedCallesModel />
+
+      {editableModels.map((model) => {
+        const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);
+        const orientation = Transforms.headingPitchRollQuaternion(
+          position,
+          new HeadingPitchRoll(
+            CesiumMath.toRadians(model.heading),
+            CesiumMath.toRadians(model.pitch),
+            CesiumMath.toRadians(model.roll)
+          )
+        );
+        return (
+          <Entity
+            key={model.id}
+            name={model.name}
+            position={position}
+            orientation={orientation}
+            model={{
+              uri: model.uri,
+              minimumPixelSize: 128,
+            }}
+          />
+        );
+      })}
     </Viewer>
   );
 };

@@ -3,10 +3,12 @@ import io from 'socket.io-client';
 import MapView from './components/MapView';
 import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
-import GpsDisplay from './components/GpsDisplay'; // Importar el nuevo componente
+import GpsDisplay from './components/GpsDisplay';
+import ModelEditor from './components/ModelEditor'; // Importar el editor
 import { createPeerConnection } from './lib/webrtc';
 import { computeBearing, smoothAngle } from './lib/geo';
 import './App.css';
+import './components/ModelEditor.css'; // Importar estilos del editor
 
 function App() {
   // --- STATE MANAGEMENT ---
@@ -19,8 +21,12 @@ function App() {
   const [pipHidden, setPipHidden] = useState(false);
   const [connectionState, setConnectionState] = useState('new');
 
+  // Estado para los modelos 3D editables (solo en modo desarrollo)
+  const [editableModels, setEditableModels] = useState([]);
+
   const videoContainerRef = useRef(null);
   const dragDataRef = useRef({ dragging:false, offsetX:0, offsetY:0 });
+
 
   // Ref para mantener la instancia de RTCPeerConnection
   const peerConnectionRef = useRef(null);
@@ -198,6 +204,10 @@ function App() {
   // --- RENDER ---
   return (
     <div className="app-container">
+      {/* El editor solo se renderiza en modo desarrollo */}
+      {import.meta.env.MODE === 'development' && (
+        <ModelEditor models={editableModels} setModels={setEditableModels} />
+      )}
       <GpsDisplay position={phonePosition} />
       <div className={pipClasses} ref={videoContainerRef}>
         <div className="pip-controls" data-drag-exclude="true">
@@ -208,7 +218,7 @@ function App() {
         {!isConnected && <div className="status-overlay">Esperando conexión del dispositivo...</div>}
       </div>
       <div className="map-container">
-        <MapView position={phonePosition} />
+        <MapView position={phonePosition} editableModels={editableModels} />
       </div>
       {activePOI && <InfoPanel poi={activePOI} />}
     </div>

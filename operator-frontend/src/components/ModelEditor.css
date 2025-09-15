@@ -1,0 +1,120 @@
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  gap: 10px;
+}
+
+.editor-toolbar button {
+  flex-grow: 1;
+  padding: 8px;
+  background-color: #4a4a4a;
+  border: 1px solid #666;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.editor-toolbar button:hover {
+  background-color: #5a5a5a;
+}
+
+.editor-toolbar button:disabled {
+  background-color: #333;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.editor-toolbar select {
+  flex-grow: 2;
+  padding: 8px;
+  background-color: #222;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 4px;
+}
+
+.editor-placeholder {
+  text-align: center;
+  color: #aaa;
+  margin-top: 20px;
+  font-style: italic;
+}
+
+.model-editor {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(40, 40, 40, 0.85);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #555;
+  z-index: 100;
+  width: 450px;
+  font-family: sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.model-editor h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #666;
+  padding-bottom: 10px;
+  text-align: center;
+}
+
+.editor-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-control {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px;
+  align-items: center;
+  gap: 10px;
+}
+
+.editor-control label {
+  font-weight: bold;
+}
+
+.editor-control input[type="range"] {
+  width: 100%;
+}
+
+.editor-control input[type="number"],
+.editor-control input[type="text"] {
+  width: 100%;
+  background: #222;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.editor-output {
+  margin-top: 20px;
+  background: #1a1a1a;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.editor-output p {
+  margin: 0 0 10px 0;
+  font-weight: bold;
+}
+
+.editor-output pre {
+  background: #000;
+  color: #00ff7f;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 12px;
+}
