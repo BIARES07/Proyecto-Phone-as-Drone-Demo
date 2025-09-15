@@ -4,7 +4,11 @@ import MapView from './components/MapView';
 import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
 import GpsDisplay from './components/GpsDisplay';
-import ModelEditor from './components/ModelEditor'; // Importar el editor
+// Editor de desarrollo: carga dinámica, no incluido en producción
+let DevModelEditor;
+if (import.meta.env.DEV) {
+  DevModelEditor = React.lazy(() => import('./components/DevModelEditor'));
+}
 import { createPeerConnection } from './lib/webrtc';
 import { computeBearing, smoothAngle } from './lib/geo';
 import './App.css';
@@ -22,6 +26,7 @@ function App() {
   const [connectionState, setConnectionState] = useState('new');
 
   // Estado para los modelos 3D editables (solo en modo desarrollo)
+  // Modelos editables solo en desarrollo local
   const [editableModels, setEditableModels] = useState([]);
 
   const videoContainerRef = useRef(null);
@@ -204,9 +209,11 @@ function App() {
   // --- RENDER ---
   return (
     <div className="app-container">
-      {/* El editor solo se renderiza en modo desarrollo */}
-      {import.meta.env.MODE === 'development' && (
-        <ModelEditor models={editableModels} setModels={setEditableModels} />
+      {/* Editor de modelos en desarrollo: React.lazy + Suspense */}
+      {import.meta.env.DEV && DevModelEditor && (
+        <React.Suspense fallback={null}>
+          <DevModelEditor models={editableModels} setModels={setEditableModels} />
+        </React.Suspense>
       )}
       <GpsDisplay position={phonePosition} />
       <div className={pipClasses} ref={videoContainerRef}>

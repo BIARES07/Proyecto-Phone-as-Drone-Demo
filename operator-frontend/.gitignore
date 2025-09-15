@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Ignorar editor de modelos solo para desarrollo local
+src/components/DevModelEditor.jsx
+src/components/DevModelEditor.css
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

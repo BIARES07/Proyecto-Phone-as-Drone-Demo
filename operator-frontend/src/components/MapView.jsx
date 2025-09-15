@@ -34,19 +34,6 @@ const MapView = ({ position, editableModels = [] }) => {
   const entityId = 'phone-entity';
   const cartesianPos = position ? Cartesian3.fromDegrees(position.lon, position.lat, 0) : undefined;
 
-  const modelPosition = useMemo(() => {
-    if (!modelParams) return null;
-    return Cartesian3.fromDegrees(modelParams.lon, modelParams.lat, modelParams.height);
-  }, [modelParams]);
-
-  const modelOrientation = useMemo(() => {
-    if (!modelPosition || !modelParams) return null;
-    const heading = CesiumMath.toRadians(modelParams.heading);
-    const pitch = CesiumMath.toRadians(modelParams.pitch);
-    const roll = CesiumMath.toRadians(modelParams.roll);
-    const hpr = new HeadingPitchRoll(heading, pitch, roll);
-    return Transforms.headingPitchRollQuaternion(modelPosition, hpr);
-  }, [modelPosition, modelParams]);
 
   const headingLinePositions = useMemo(() => {
     if (!position || position.heading == null || position.headingSource === 'none') return null;
