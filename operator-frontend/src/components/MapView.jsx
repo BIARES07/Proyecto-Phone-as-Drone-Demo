@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Viewer, Entity, Cesium3DTileset } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Ion } from 'cesium';
+import { Viewer, Entity } from 'resium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Ion, Cesium3DTileset, Cesium3DTileStyle, defined } from 'cesium';
 
 // Inicializar token Ion (solo una vez). Si no existe variable, loguear advertencia.
 if (Ion.defaultAccessToken == null) {
@@ -19,6 +19,8 @@ const MapView = ({ position }) => {
   const viewerRef = useRef(null);
   const entityId = 'phone-entity';
   const [showTileset, setShowTileset] = useState(true);
+  const tilesetRef = useRef(null);
+  const tilesetLoadingRef = useRef(false);
   // La API de geolocalización devuelve el rumbo en grados desde el norte, en sentido horario.
   // Cesium rota en radianes en sentido antihorario desde el este.
   // Convertimos grados a radianes y ajustamos el offset.
@@ -58,6 +60,62 @@ const MapView = ({ position }) => {
   // Handler toggle
   const toggleTileset = useCallback(() => setShowTileset(v => !v), []);
 
+  // Carga manual del tileset usando API nativa (evita bug wrapper)
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+
+    // Mostrar/ocultar si ya existe
+    if (tilesetRef.current) {
+      tilesetRef.current.show = showTileset;
+    }
+
+    if (!showTileset) return; // no cargar si está oculto
+    if (tilesetRef.current || tilesetLoadingRef.current) return; // ya cargado o en curso
+    tilesetLoadingRef.current = true;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        console.log('[Tileset] Cargando manualmente via fromIonAssetId', ASSET_ID_TILESET);
+        const tileset = await Cesium3DTileset.fromIonAssetId(ASSET_ID_TILESET);
+        if (cancelled) return;
+        tilesetRef.current = tileset;
+        viewer.scene.primitives.add(tileset);
+        await tileset.readyPromise;
+        console.log('[Tileset] READY radius:', tileset.boundingSphere.radius.toFixed(2));
+        // Aplicar estilo default si existe
+        const extras = tileset.asset?.extras;
+        if (defined(extras) && defined(extras.ion) && defined(extras.ion.defaultStyle)) {
+          try {
+            tileset.style = new Cesium3DTileStyle(extras.ion.defaultStyle);
+            console.log('[Tileset] Estilo default aplicado');
+          } catch (e) {
+            console.warn('[Tileset] No se pudo aplicar estilo default', e);
+          }
+        }
+        viewer.flyTo(tileset).catch(e => console.warn('[Tileset] flyTo cancelado', e));
+      } catch (e) {
+        console.error('[Tileset] Error durante carga manual', e);
+      } finally {
+        tilesetLoadingRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showTileset]);
+
+  const handleFlyTo = useCallback(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (viewer && tilesetRef.current) {
+      viewer.flyTo(tilesetRef.current).catch(e => console.warn('[Tileset] flyTo cancelado', e));
+    } else {
+      console.warn('[Tileset] No listo para flyTo');
+    }
+  }, []);
+
   return (
     <Viewer full ref={viewerRef}>
       {/* UI flotante simple para controlar visibilidad del tileset */}
@@ -67,42 +125,11 @@ const MapView = ({ position }) => {
           Modelo 3D (Tileset {ASSET_ID_TILESET})
         </label>
         <button
-          onClick={() => {
-            const viewer = viewerRef.current?.cesiumElement;
-            if (!viewer) return;
-            // Intentar localizar tileset entre primitives
-            const primitives = viewer.scene.primitives._primitives || [];
-            const candidate = primitives.find(p => p.asset?.id === ASSET_ID_TILESET) || primitives.find(p => p._root); // heurística
-            if (candidate) {
-              viewer.flyTo(candidate).catch(e => console.warn('[Tileset] flyTo cancelado', e));
-            } else {
-              console.warn('[Tileset] No se encontró tileset para flyTo aún');
-            }
-          }}
+          onClick={handleFlyTo}
           style={{ marginLeft: 10, background: '#1976d2', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}
         >Ir al modelo</button>
       </div>
-
-      {showTileset && (
-        <Cesium3DTileset
-          key={ASSET_ID_TILESET}
-          assetId={ASSET_ID_TILESET}
-          maximumScreenSpaceError={8}
-          onReady={(tileset) => {
-            console.log('[Tileset] READY. BoundingSphere radius:', tileset.boundingSphere.radius.toFixed(2));
-            const viewer = viewerRef.current?.cesiumElement;
-            if (viewer) {
-              viewer.flyTo(tileset).catch(e => console.warn('[Tileset] flyTo cancelado:', e));
-            }
-          }}
-          onError={(error) => {
-            console.error('[Tileset] Error cargando asset', ASSET_ID_TILESET, error);
-            if (error && /access/i.test(String(error))) {
-              console.warn('[Tileset] Verifica que el token tenga acceso al asset y que no esté archivado.');
-            }
-          }}
-        />
-      )}
+      {/* El tileset se gestiona manualmente; no se renderiza componente específico aquí */}
       {position && (
         <>
           {/* Círculo de precisión */}
