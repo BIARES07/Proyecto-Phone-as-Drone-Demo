@@ -1,10 +1,24 @@
-import React, { useRef, useEffect, useMemo } from 'react';
-import { Viewer, Entity } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference } from 'cesium';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { Viewer, Entity, Cesium3DTileset } from 'resium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Ion, IonResource } from 'cesium';
+
+// Inicializar token Ion (solo una vez). Si no existe variable, loguear advertencia.
+if (Ion.defaultAccessToken == null) {
+  const token = import.meta.env.VITE_CESIUM_ION_TOKEN;
+  if (token) {
+    Ion.defaultAccessToken = token;
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn('[Cesium] Falta VITE_CESIUM_ION_TOKEN; el tileset no se podrá cargar.');
+  }
+}
+
+const ASSET_ID_TILESET = 3723281; // Modelo 3D Tiles proporcionado
 
 const MapView = ({ position }) => {
   const viewerRef = useRef(null);
   const entityId = 'phone-entity';
+  const [showTileset, setShowTileset] = useState(true);
   // La API de geolocalización devuelve el rumbo en grados desde el norte, en sentido horario.
   // Cesium rota en radianes en sentido antihorario desde el este.
   // Convertimos grados a radianes y ajustamos el offset.
@@ -41,8 +55,31 @@ const MapView = ({ position }) => {
     }
   }, [position]);
 
+  // Handler toggle
+  const toggleTileset = useCallback(() => setShowTileset(v => !v), []);
+
   return (
     <Viewer full ref={viewerRef}>
+      {/* UI flotante simple para controlar visibilidad del tileset */}
+      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.55)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: '#fff' }}>
+        <label style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={showTileset} onChange={toggleTileset} style={{ marginRight: 6 }} />
+          Modelo 3D (Tileset {ASSET_ID_TILESET})
+        </label>
+      </div>
+
+      {showTileset && (
+        <Cesium3DTileset
+          key={ASSET_ID_TILESET}
+          url={IonResource.fromAssetId(ASSET_ID_TILESET)}
+          // Ajustar para rendimiento/calidad. Menor = más detalle.
+          maximumScreenSpaceError={8}
+          onReady={(tileset) => {
+            // eslint-disable-next-line no-console
+            console.log('[Tileset] Listo. BoundingSphere radius:', tileset.boundingSphere.radius.toFixed(2));
+          }}
+        />
+      )}
       {position && (
         <>
           {/* Círculo de precisión */}
