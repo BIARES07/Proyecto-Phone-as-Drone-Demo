@@ -58,7 +58,8 @@ const FixedEdificiosModel = ({ isHighlighted }) => {
 };
 
 // 1c. Modelo Fijo adicional: '44.glb' con la posición y orientación proporcionadas por el usuario
-const FixedModel44 = () => {
+// Ahora soporta resaltado si su POI está activo (modelId '44').
+const FixedModel44 = ({ isHighlighted }) => {
   const position = Cartesian3.fromDegrees(-66.7674174332, 10.1038688942, 0);
   const orientation = Transforms.headingPitchRollQuaternion(
     position,
@@ -70,12 +71,15 @@ const FixedModel44 = () => {
   );
   return (
     <Entity
-      name="Modelo 1757998630887"
+      name="Modelo 44"
       position={position}
       orientation={orientation}
       model={{
         uri: '/44.glb',
         scale: 1,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0,
+        colorBlendAmount: 0.5,
       }}
     />
   );
@@ -193,8 +197,8 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
 
       {/* 2. Render del modelo fijo y los modelos editables */}
       <FixedCallesModel isHighlighted={activePoiModels.has('calles')} />
-      <FixedEdificiosModel isHighlighted={activePoiModels.has('edificios')} />
-  <FixedModel44 />
+  <FixedEdificiosModel isHighlighted={activePoiModels.has('edificios')} />
+	<FixedModel44 isHighlighted={activePoiModels.has('44')} />
 
       {editableModels.map((model) => {
         const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);

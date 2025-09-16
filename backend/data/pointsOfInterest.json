@@ -15,4 +15,12 @@
     "info": "Misión Bravo: Punto de encuentro secundario. Vigilar actividad en la zona.",
     "modelId": "calles"
   }
+  ,{
+    "name": "Punto Modelo 44",
+    "latitude": 10.1038688942,
+    "longitude": -66.7674174332,
+    "radius": 50,
+    "info": "Misión Charlie: Referencia para el modelo 44.glb.",
+    "modelId": "44"
+  }
 ]

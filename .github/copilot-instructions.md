@@ -40,7 +40,7 @@ Reemplaza al antiguo `InfoPanel` único. Ahora se mantiene un `Map` en memoria e
 - Orden de visualización: distancia ascendente (si calculable) y luego más recientes.
 - Cada card muestra: nombre, tiempo relativo (`lastSeen`), info, lat, lon, radio, distancia dinámica, número de detecciones (hits), primera detección y (si aplica) `modelId`.
 - Barra de proximidad (gradiente) visible solo si el dispositivo sigue dentro del radio; porcentaje = `1 - (dist/radius)`.
-- Click sobre card fija el `activePOI` para resaltar en el mapa (lógica previa preservada para highlight de modelos).
+- Click sobre card fija el `activePOI` para resaltar en el mapa (lógica previa preservada para highlight de modelos). Modelos fijos soportan highlight por `modelId`: `calles`, `edificios` y ahora `44` (nuevo POI "Punto Modelo 44" asociado a `44.glb`).
 - Componente antiguo `InfoPanel` queda comentado (puede eliminarse en refactor futuro).
 
 ## DevModelEditor (Solo Desarrollo)
