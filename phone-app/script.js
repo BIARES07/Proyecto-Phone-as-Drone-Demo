@@ -5,6 +5,18 @@ const SERVER_URL = "https://proyecto-phone-as-drone-demo.onrender.com"; // Cambi
 let socket;
 let peerConnection;
 let localStream;
+let sessionId = null;
+let isStreaming = false;
+let pendingRecovery = false;
+let lastOfferAt = 0;
+let reconnectionCount = 0;
+let iceRestartCount = 0;
+let recreateCount = 0;
+
+// Parámetros de recuperación
+const RECOVERY_COOLDOWN_MS = 5000;
+const ICE_RESTART_TIMEOUT_MS = 8000;
+const CONNECTION_FAILED_GRACE_MS = 2000;
 
 // Referencias al DOM
 const startButton = document.getElementById('startButton');
@@ -22,16 +34,36 @@ function main() {
 
 // 3. Lógica de Socket.IO
 function initializeSocketConnection() {
-    socket = io(SERVER_URL);
+    initSessionId();
+    socket = io(SERVER_URL, {
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 4000,
+        timeout: 20000
+    });
 
     // Definir todos los listeners de Socket.IO aquí
     socket.on('connect', () => {
-        statusDiv.textContent = 'Conectado al servidor. Listo para transmitir.';
-        socket.emit('register-client', { role: 'PHONE' });
+        statusDiv.textContent = 'Conectado al servidor';
+        socket.emit('register-client', { role: 'PHONE', sessionId });
     });
 
-    socket.on('disconnect', () => {
-        statusDiv.textContent = 'Desconectado del servidor.';
+    socket.on('reconnect_attempt', (n) => {
+        updateStatus(`Reintentando conexión (intento ${n})...`, 'warn');
+    });
+
+    socket.on('reconnect', (n) => {
+        reconnectionCount++;
+        updateStatus(`Reconectado (intentos previos: ${n})`, 'info');
+        socket.emit('register-client', { role: 'PHONE', sessionId });
+        // Si ya estábamos transmitiendo, validar estado PC
+        if (isStreaming) {
+            scheduleConnectionHealthCheck();
+        }
+    });
+
+    socket.on('disconnect', (reason) => {
+        updateStatus(`Desconectado: ${reason}`, 'error');
     });
 
     socket.on('webrtc-answer', (payload) => {
@@ -56,8 +88,9 @@ async function startStreaming() {
         statusDiv.textContent = 'Permisos concedidos. Iniciando transmisión...';
 
         // Activar GPS y WebRTC
-        activateGPS(socket);
-        startWebRTCCall(socket, localStream);
+    activateGPS(socket);
+    startWebRTCCall(socket, localStream);
+    isStreaming = true;
 
     } catch (error) {
         statusDiv.textContent = 'Error al obtener permisos: ' + error.message;
@@ -120,8 +153,19 @@ async function startWebRTCCall(socket, stream) {
     };
 
     peerConnection.onconnectionstatechange = () => {
-        console.log('Estado de la conexión WebRTC:', peerConnection.connectionState);
-        statusDiv.textContent = `Estado WebRTC: ${peerConnection.connectionState}`;
+        const state = peerConnection.connectionState;
+        console.log('Estado de la conexión WebRTC:', state);
+        statusDiv.textContent = `Estado WebRTC: ${state}`;
+        if (state === 'disconnected') {
+            setTimeout(() => {
+                if (peerConnection && peerConnection.connectionState === 'disconnected') {
+                    console.log('[RECOVERY][PHONE] persistente estado disconnected, intentando recuperación');
+                    attemptRecovery('ICE_RESTART');
+                }
+            }, CONNECTION_FAILED_GRACE_MS);
+        } else if (state === 'failed') {
+            attemptRecovery('ICE_RESTART');
+        }
     };
 
     peerConnection.oniceconnectionstatechange = () => {
@@ -140,11 +184,7 @@ async function startWebRTCCall(socket, stream) {
 
     try {
         // Crear y Enviar la Oferta
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        console.log('[DBG][PHONE][SDP][OFFER] Primeras 300 chars =>\n', offer.sdp.slice(0,300));
-        console.log('[DBG][PHONE] Senders actuales:', peerConnection.getSenders().map(s => ({ kind: s.track && s.track.kind, id: s.track && s.track.id, readyState: s.track && s.track.readyState })));
-        socket.emit('webrtc-offer', { sdp: peerConnection.localDescription });
+        await createAndSendOffer();
         statusDiv.textContent = 'Transmitiendo video y GPS.';
     } catch (error) {
         console.error("Error creando la oferta WebRTC:", error);
@@ -172,6 +212,101 @@ async function handleNewICECandidate(payload) {
             console.error("Error al añadir el candidato ICE:", error);
         }
     }
+}
+
+// --- NUEVAS FUNCIONES DE RECUPERACIÓN ---
+function initSessionId() {
+    try {
+        const stored = localStorage.getItem('phoneSessionId');
+        if (stored && stored.length <= 64) {
+            sessionId = stored;
+        } else {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('phoneSessionId', sessionId);
+        }
+        console.log('[SESSION][PHONE] sessionId=', sessionId);
+    } catch (e) {
+        console.warn('[SESSION][PHONE] No se pudo inicializar sessionId, modo ephemeral', e);
+        sessionId = null;
+    }
+}
+
+async function createAndSendOffer(options = {}) {
+    const now = Date.now();
+    lastOfferAt = now;
+    const offer = await peerConnection.createOffer(options);
+    await peerConnection.setLocalDescription(offer);
+    console.log('[DBG][PHONE][SDP][OFFER] Enviando oferta. iceRestart=', !!options.iceRestart);
+    socket.emit('webrtc-offer', { sdp: peerConnection.localDescription });
+}
+
+function scheduleConnectionHealthCheck() {
+    setTimeout(() => {
+        if (!peerConnection) return;
+        const state = peerConnection.connectionState;
+        if (state !== 'connected') {
+            console.log('[RECOVERY][PHONE] HealthCheck detecta estado', state);
+            attemptRecovery('ICE_RESTART');
+        }
+    }, 1500);
+}
+
+function attemptRecovery(mode) {
+    if (!peerConnection || !isStreaming) return;
+    if (pendingRecovery) {
+        console.log('[RECOVERY][PHONE] Recuperación ya en curso, se ignora');
+        return;
+    }
+    const sinceLastOffer = Date.now() - lastOfferAt;
+    if (sinceLastOffer < RECOVERY_COOLDOWN_MS) {
+        console.log('[RECOVERY][PHONE] Cooldown activo, se difiere intento', mode);
+        return;
+    }
+    pendingRecovery = true;
+    updateStatus('Intentando recuperar conexión...', 'warn');
+
+    if (mode === 'ICE_RESTART') {
+        iceRestartCount++;
+        doIceRestart().catch(err => {
+            console.error('[RECOVERY][PHONE] Error en ICE restart, recreando PC', err);
+            recreatePeerConnection();
+        });
+    } else {
+        recreatePeerConnection();
+    }
+}
+
+async function doIceRestart() {
+    console.log('[RECOVERY][PHONE] ICE restart iniciado');
+    try {
+        await createAndSendOffer({ iceRestart: true });
+    } catch (e) {
+        throw e;
+    }
+    // Esperar a ver si se recupera
+    setTimeout(() => {
+        if (!peerConnection) return;
+        if (peerConnection.connectionState !== 'connected') {
+            console.log('[RECOVERY][PHONE] ICE restart no logró conexión, recreando PC');
+            recreatePeerConnection();
+        } else {
+            pendingRecovery = false;
+            updateStatus('Conexión recuperada', 'success');
+        }
+    }, ICE_RESTART_TIMEOUT_MS);
+}
+
+function recreatePeerConnection() {
+    recreateCount++;
+    console.log('[RECOVERY][PHONE] Recreando PeerConnection');
+    try { peerConnection && peerConnection.close(); } catch {}
+    startWebRTCCall(socket, localStream);
+    pendingRecovery = false;
+    updateStatus('PeerConnection recreada', 'info');
+}
+
+function updateStatus(msg, level='info') {
+    statusDiv.textContent = `[${level}] ${msg}`;
 }
 
 // 6. Punto de Entrada

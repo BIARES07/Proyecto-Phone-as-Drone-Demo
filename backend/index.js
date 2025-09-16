@@ -35,6 +35,22 @@ let connectedClients = {
     operatorSocketIds: new Set()
 };
 
+// Sesiones persistentes en memoria (simple) => { [sessionId]: { phoneSocketId, lastSeen } }
+// Nota: Solo se soporta 1 teléfono activo a la vez todavía, pero el sessionId permite reatachar tras reconexión.
+const sessions = {}; // sessionId -> { phoneSocketId, lastSeen }
+const SESSION_TTL_MS = parseInt(process.env.SESSION_TTL_MS || '600000', 10); // 10 minutos por defecto
+
+function cleanupStaleSessions() {
+    const now = Date.now();
+    Object.entries(sessions).forEach(([sid, meta]) => {
+        if (now - meta.lastSeen > SESSION_TTL_MS) {
+            console.log(`[SESSION] Limpiando sesión expirada ${sid}`);
+            delete sessions[sid];
+        }
+    });
+}
+setInterval(cleanupStaleSessions, 60_000).unref();
+
 // D. Middlewares de Express
 app.use(cors());
 app.use('/phone', express.static(path.join(__dirname, '..', 'phone-app')));
@@ -89,20 +105,54 @@ io.on('connection', (socket) => {
 
             switch (payload.role) {
                 case 'PHONE':
-                    if (connectedClients.phoneSocketId && connectedClients.phoneSocketId !== socket.id) {
-                        console.warn(`[REGISTER] Advertencia: Un nuevo teléfono (${socket.id}) se está registrando mientras otro (${connectedClients.phoneSocketId}) ya estaba activo.`);
+                    const sessionId = (payload.sessionId && typeof payload.sessionId === 'string' && payload.sessionId.length <= 64)
+                        ? payload.sessionId
+                        : null;
+
+                    if (!sessionId) {
+                        // Modo legacy (sin sessionId) => comportamiento previo
+                        if (connectedClients.phoneSocketId && connectedClients.phoneSocketId !== socket.id) {
+                            console.warn(`[REGISTER] (LEGACY) Nuevo teléfono (${socket.id}) reemplaza a ${connectedClients.phoneSocketId}.`);
+                        }
+                        connectedClients.phoneSocketId = socket.id;
+                        socket.join('phone-room');
+                        io.to('operator-room').emit('phone-connected');
+                        console.log(`[REGISTER] (LEGACY) Teléfono registrado sin sessionId. Socket: ${socket.id}`);
+                        break;
                     }
-                    connectedClients.phoneSocketId = socket.id;
-                    socket.join('phone-room');
-                    io.to('operator-room').emit('phone-connected');
-                    console.log(`[REGISTER] Teléfono registrado con ID: ${socket.id}`);
+
+                    const existing = sessions[sessionId];
+                    if (existing) {
+                        // Reconexión de sesión existente
+                        console.log(`[SESSION] Reatach de sesión ${sessionId}. Antiguo socket: ${existing.phoneSocketId} -> nuevo socket: ${socket.id}`);
+                        existing.phoneSocketId = socket.id;
+                        existing.lastSeen = Date.now();
+                        connectedClients.phoneSocketId = socket.id; // mantener compat con lógica actual
+                        socket.join('phone-room');
+                        io.to('operator-room').emit('phone-reconnected', { sessionId });
+                    } else {
+                        // Nueva sesión
+                        sessions[sessionId] = { phoneSocketId: socket.id, lastSeen: Date.now() };
+                        if (connectedClients.phoneSocketId && connectedClients.phoneSocketId !== socket.id) {
+                            console.warn(`[REGISTER] Nuevo teléfono (${socket.id}) registrado con sessionId ${sessionId} mientras había otro (${connectedClients.phoneSocketId}). Se sobrescribe.`);
+                        }
+                        connectedClients.phoneSocketId = socket.id;
+                        socket.join('phone-room');
+                        io.to('operator-room').emit('phone-connected', { sessionId });
+                        console.log(`[REGISTER] Teléfono registrado con sessionId=${sessionId} socket=${socket.id}`);
+                    }
                     break;
                 case 'OPERATOR':
                     connectedClients.operatorSocketIds.add(socket.id);
                     socket.join('operator-room');
                     console.log(`[REGISTER] Operador registrado con ID: ${socket.id}. Total operadores: ${connectedClients.operatorSocketIds.size}`);
-                    if (connectedClients.phoneSocketId) {
-                        socket.emit('phone-connected');
+                    if (connectedClients.phoneSocketId) { // se le puede enviar info de sesión si existe
+                        // Buscar sessionId activo (lineal ya que solo 1 esperado)
+                        let activeSessionId = null;
+                        for (const [sid, meta] of Object.entries(sessions)) {
+                            if (meta.phoneSocketId === connectedClients.phoneSocketId) { activeSessionId = sid; break; }
+                        }
+                        socket.emit('phone-connected', activeSessionId ? { sessionId: activeSessionId } : undefined);
                     }
                     break;
                 default:
@@ -122,6 +172,14 @@ io.on('connection', (socket) => {
             if (!payload || typeof payload.lat !== 'number' || typeof payload.lon !== 'number') {
                 console.warn(`[GPS] Payload de GPS inválido recibido del teléfono:`, payload);
                 return;
+            }
+
+            // actualizar lastSeen de la sesión activa (si se identifica)
+            for (const [sid, meta] of Object.entries(sessions)) {
+                if (meta.phoneSocketId === socket.id) {
+                    meta.lastSeen = Date.now();
+                    break;
+                }
             }
 
             // console.log(`[GPS] Recibida actualización de GPS: Lat ${payload.lat}, Lon ${payload.lon}`);
@@ -185,6 +243,17 @@ io.on('connection', (socket) => {
             socket.to(targetRoom).emit('webrtc-ice-candidate', payload);
         } catch (error) {
             console.error(`[ERROR] en evento 'webrtc-ice-candidate' para socket ${socket.id}:`, error);
+        }
+    });
+
+    // Ping de operador para medir RTT signaling (ack con callback)
+    socket.on('operator-ping', (payload, ack) => {
+        try {
+            if (typeof ack === 'function') {
+                ack({ pong: true, serverTs: Date.now(), echo: payload?.seq });
+            }
+        } catch (e) {
+            console.error('[ERROR] operator-ping', e);
         }
     });
 });
