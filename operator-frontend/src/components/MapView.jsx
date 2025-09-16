@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Viewer, Entity } from 'resium';
 import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll } from 'cesium';
 
 // 1. Modelo Fijo: Componente para tu modelo 'calles.glb' con su posición y rotación hardcodeadas.
-const FixedCallesModel = () => {
+const FixedCallesModel = ({ isHighlighted }) => {
   const position = Cartesian3.fromDegrees(-66.767352303, 10.1048760366, 0);
   const orientation = Transforms.headingPitchRollQuaternion(
     position,
@@ -22,13 +22,16 @@ const FixedCallesModel = () => {
       model={{
         uri: '/calles.glb',
         scale: 1,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0, // 0=HIGHLIGHT, 1=REPLACE, 2=MIX
+        colorBlendAmount: 0.5,
       }}
     />
   );
 };
 
 // 1b. Modelo Fijo: Componente para tu modelo 'edificios.glb' con posición y orientación hardcodeadas
-const FixedEdificiosModel = () => {
+const FixedEdificiosModel = ({ isHighlighted }) => {
   const position = Cartesian3.fromDegrees(-66.7676477673, 10.104852237, 0);
   const orientation = Transforms.headingPitchRollQuaternion(
     position,
@@ -46,13 +49,53 @@ const FixedEdificiosModel = () => {
       model={{
         uri: '/edificios.glb',
         scale: 1,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0,
+        colorBlendAmount: 0.5,
       }}
     />
   );
 };
 
-const MapView = ({ position, editableModels = [] }) => {
+const MapView = ({ position, activePoi, editableModels = [] }) => {
   const viewerRef = useRef(null);
+  const [activePoiModels, setActivePoiModels] = useState(new Set());
+  const activePoiTimeouts = useRef(new Map());
+
+  useEffect(() => {
+    if (activePoi && activePoi.modelId) {
+      const { modelId } = activePoi;
+
+      // Si ya hay un timeout para este POI, lo limpiamos para reiniciarlo
+      if (activePoiTimeouts.current.has(modelId)) {
+        clearTimeout(activePoiTimeouts.current.get(modelId));
+      }
+
+      // Añadimos el modelId al set de modelos activos y actualizamos el estado
+      setActivePoiModels(prevModels => {
+        if (!prevModels.has(modelId)) {
+          const newModels = new Set(prevModels);
+          newModels.add(modelId);
+          return newModels;
+        }
+        return prevModels;
+      });
+
+      // Creamos un nuevo timeout para eliminar el resalte después de 5 segundos de inactividad
+      const timeoutId = setTimeout(() => {
+        setActivePoiModels(prevModels => {
+          const newModels = new Set(prevModels);
+          newModels.delete(modelId);
+          return newModels;
+        });
+        activePoiTimeouts.current.delete(modelId);
+      }, 5000); // 5 segundos
+
+      activePoiTimeouts.current.set(modelId, timeoutId);
+    }
+  }, [activePoi]);
+
+
   const entityId = 'phone-entity';
   const cartesianPos = position ? Cartesian3.fromDegrees(position.lon, position.lat, 0) : undefined;
 
@@ -125,8 +168,8 @@ const MapView = ({ position, editableModels = [] }) => {
       )}
 
       {/* 2. Render del modelo fijo y los modelos editables */}
-      <FixedCallesModel />
-      <FixedEdificiosModel />
+      <FixedCallesModel isHighlighted={activePoiModels.has('calles')} />
+      <FixedEdificiosModel isHighlighted={activePoiModels.has('edificios')} />
 
       {editableModels.map((model) => {
         const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);

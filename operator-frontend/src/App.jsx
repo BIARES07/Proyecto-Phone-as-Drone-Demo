@@ -225,7 +225,7 @@ function App() {
         {!isConnected && <div className="status-overlay">Esperando conexión del dispositivo...</div>}
       </div>
       <div className="map-container">
-        <MapView position={phonePosition} editableModels={editableModels} />
+        <MapView position={phonePosition} activePoi={activePOI} editableModels={editableModels} />
       </div>
       {activePOI && <InfoPanel poi={activePOI} />}
     </div>
