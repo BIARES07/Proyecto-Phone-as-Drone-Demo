@@ -27,6 +27,29 @@ const FixedCallesModel = () => {
   );
 };
 
+// 1b. Modelo Fijo: Componente para tu modelo 'edificios.glb' con posición y orientación hardcodeadas
+const FixedEdificiosModel = () => {
+  const position = Cartesian3.fromDegrees(-66.7676477673, 10.104852237, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(89),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+  return (
+    <Entity
+      name="Edificios Model"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/edificios.glb',
+        scale: 1,
+      }}
+    />
+  );
+};
 
 const MapView = ({ position, editableModels = [] }) => {
   const viewerRef = useRef(null);
@@ -103,6 +126,7 @@ const MapView = ({ position, editableModels = [] }) => {
 
       {/* 2. Render del modelo fijo y los modelos editables */}
       <FixedCallesModel />
+      <FixedEdificiosModel />
 
       {editableModels.map((model) => {
         const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);
