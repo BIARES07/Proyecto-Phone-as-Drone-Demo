@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import MapView from './components/MapView';
 import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
+import ActivePoisPanel from './components/ActivePoisPanel';
 import GpsDisplay from './components/GpsDisplay';
 // Editor de desarrollo: carga dinámica, no incluido en producción
 let DevModelEditor;
@@ -19,6 +20,11 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [phonePosition, setPhonePosition] = useState(null);
   const [activePOI, setActivePOI] = useState(null);
+  const [activePoisMap, setActivePoisMap] = useState(new Map()); // key -> { ..poiData, firstSeen, lastSeen, hits }
+
+  // Config TTL para POIs activos
+  const POI_TTL_MS = 10000;
+  const PRUNE_INTERVAL_MS = 3000;
   const [videoStream, setVideoStream] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [pipFullscreen, setPipFullscreen] = useState(false);
@@ -106,7 +112,21 @@ function App() {
     });
 
     newSocket.on('poi-in-range', (poi) => {
+      // Mantener compatibilidad con highlight existente
       setActivePOI(poi);
+
+      setActivePoisMap(prev => {
+        const next = new Map(prev);
+        const key = poi.name + '|' + poi.latitude + '|' + poi.longitude; // clave simple estable
+        const existing = next.get(key);
+        const now = Date.now();
+        if (existing) {
+          next.set(key, { ...existing, ...poi, lastSeen: now, hits: existing.hits + 1 });
+        } else {
+          next.set(key, { key, ...poi, firstSeen: now, lastSeen: now, hits: 1 });
+        }
+        return next;
+      });
     });
 
     // --- Lógica de WebRTC ---
@@ -155,10 +175,29 @@ function App() {
     };
     window.addEventListener('keydown', keyHandler);
 
+    // Interval para purgar POIs expirados
+    const pruneId = setInterval(() => {
+      setActivePoisMap(prev => {
+        if (prev.size === 0) return prev;
+        const now = Date.now();
+        let changed = false;
+        const next = new Map();
+        prev.forEach((val, key) => {
+          if (now - val.lastSeen <= POI_TTL_MS) {
+            next.set(key, val);
+          } else {
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, PRUNE_INTERVAL_MS);
+
     return () => {
       console.log('Desconectando socket...');
       newSocket.disconnect();
       window.removeEventListener('keydown', keyHandler);
+      clearInterval(pruneId);
     };
   }, []); // El array vacío asegura que se ejecute solo una vez
 
@@ -227,7 +266,15 @@ function App() {
       <div className="map-container">
         <MapView position={phonePosition} activePoi={activePOI} editableModels={editableModels} />
       </div>
-      {activePOI && <InfoPanel poi={activePOI} />}
+      {/* Nuevo panel lateral de POIs activos */}
+      <ActivePoisPanel
+        poisMap={activePoisMap}
+        phonePosition={phonePosition}
+        onSelect={(poi) => setActivePOI(poi)}
+        ttlMs={POI_TTL_MS}
+      />
+      {/* InfoPanel antiguo (desactivable). Podría eliminarse en un commit posterior */}
+      {/* {activePOI && <InfoPanel poi={activePOI} />} */}
     </div>
   );
 }

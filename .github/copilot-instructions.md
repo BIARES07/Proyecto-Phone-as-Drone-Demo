@@ -29,7 +29,19 @@ Backend puerto `PORT` (def 3001). Logs prefijos: `[INIT] [CONNECTION] [REGISTER]
 Rooms: `'phone-room'` (el teléfono), `'operator-room'` (todos operadores). Validación defensiva de payloads (tipos numéricos en GPS, rol en registro). Advertencia multi-teléfono: si llega otro PHONE se sobrescribe `phoneSocketId` y se loguea warning (no soportado formalmente aún). Mantener estado simple sin singletons externos.
 
 ## 8. UI / UX Operador
-Ventana PIP draggable (mouse down excepto controles). Estados WebRTC reflejados en clases `pc-state-*`. Panel `GpsDisplay` formatea lat/lon con hemisferios. `InfoPanel` muestra detalle de POI activo (último en rango). Extensión futura: desduplicar o mantener lista de POIs activos.
+Ventana PIP draggable (mouse down excepto controles). Estados WebRTC reflejados en clases `pc-state-*`. Panel `GpsDisplay` formatea lat/lon con hemisferios.
+
+### Panel de POIs Activos (Nuevo)
+Reemplaza al antiguo `InfoPanel` único. Ahora se mantiene un `Map` en memoria en el frontend con POIs "activos" (último evento `poi-in-range` dentro de un TTL).
+
+- Componente: `ActivePoisPanel` (lateral derecho, scrollable).
+- Al recibir `poi-in-range` se actualiza/crea entrada: `{ name, info, latitude, longitude, radius, modelId?, firstSeen, lastSeen, hits }`.
+- TTL configurable (actual 10s). Limpieza por intervalo (3s) elimina entradas expiradas (`now - lastSeen > TTL`).
+- Orden de visualización: distancia ascendente (si calculable) y luego más recientes.
+- Cada card muestra: nombre, tiempo relativo (`lastSeen`), info, lat, lon, radio, distancia dinámica, número de detecciones (hits), primera detección y (si aplica) `modelId`.
+- Barra de proximidad (gradiente) visible solo si el dispositivo sigue dentro del radio; porcentaje = `1 - (dist/radius)`.
+- Click sobre card fija el `activePOI` para resaltar en el mapa (lógica previa preservada para highlight de modelos).
+- Componente antiguo `InfoPanel` queda comentado (puede eliminarse en refactor futuro).
 
 ## DevModelEditor (Solo Desarrollo)
 - En `operator-frontend/src/components/DevModelEditor.jsx` (+`.css`), existe un editor de modelos 3D que permite añadir múltiples archivos `.glb`, ajustar posición (lon, lat, altura) y orientación (heading, pitch, roll), y copiar el fragmento de JSX generado.
