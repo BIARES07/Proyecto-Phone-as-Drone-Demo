@@ -1,16 +1,16 @@
 [
   {
     "name": "Edificio Histórico",
-    "latitude": -34.6037,
-    "longitude": -58.3816,
+    "latitude": 10.104852237,
+    "longitude": -66.7676477673,
     "radius": 50,
     "info": "Misión Alfa: Recuperar datos del objetivo principal. Edificio con valor arquitectónico de 1920.",
     "modelId": "edificios"
   },
   {
     "name": "Plaza Central",
-    "latitude": -34.6083,
-    "longitude": -58.3718,
+    "latitude": 10.1048760366,
+    "longitude": -66.767352303,
     "radius": 70,
     "info": "Misión Bravo: Punto de encuentro secundario. Vigilar actividad en la zona.",
     "modelId": "calles"
