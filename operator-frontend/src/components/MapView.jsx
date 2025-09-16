@@ -57,6 +57,30 @@ const FixedEdificiosModel = ({ isHighlighted }) => {
   );
 };
 
+// 1c. Modelo Fijo adicional: '44.glb' con la posición y orientación proporcionadas por el usuario
+const FixedModel44 = () => {
+  const position = Cartesian3.fromDegrees(-66.7674174332, 10.1038688942, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(90),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+  return (
+    <Entity
+      name="Modelo 1757998630887"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/44.glb',
+        scale: 1,
+      }}
+    />
+  );
+};
+
 const MapView = ({ position, activePoi, editableModels = [] }) => {
   const viewerRef = useRef(null);
   const [activePoiModels, setActivePoiModels] = useState(new Set());
@@ -170,6 +194,7 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
       {/* 2. Render del modelo fijo y los modelos editables */}
       <FixedCallesModel isHighlighted={activePoiModels.has('calles')} />
       <FixedEdificiosModel isHighlighted={activePoiModels.has('edificios')} />
+  <FixedModel44 />
 
       {editableModels.map((model) => {
         const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);
