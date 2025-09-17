@@ -363,7 +363,7 @@ function App() {
           <button onClick={toggleFullscreen} data-drag-exclude="true" title="Fullscreen (f)">{pipFullscreen ? 'Normal' : 'Full'}</button>
         </div>
         <VideoStream stream={videoStream} />
-        {!isConnected && <div className="status-overlay">Esperando conexión del dispositivo...</div>}
+        {!isConnected && <div className="status-overlay">Esperando conexión con el Dron...</div>}
         {telemetryLost && <div className="status-overlay warn">Sin telemetría (&gt;10s sin GPS)</div>}
       </div>
       {/* Status Dock: métricas generales fuera del PiP */}

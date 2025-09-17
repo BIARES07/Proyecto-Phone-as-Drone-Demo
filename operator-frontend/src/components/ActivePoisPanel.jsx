@@ -76,7 +76,7 @@ const ActivePoisPanel = ({ poisMap, phonePosition, onSelect, ttlMs }) => {
   return (
     <aside className="active-pois-panel">
       <div className="panel-header">
-        <h3>POIs Activos <span className="count-badge">{list.length}</span></h3>
+        <h3>Lugares de interes cercanos <span className="count-badge">{list.length}</span></h3>
         <div className="ttl-hint">TTL {Math.round(ttlMs/1000)}s</div>
       </div>
       {list.length === 0 && (
