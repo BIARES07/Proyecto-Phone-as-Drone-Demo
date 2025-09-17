@@ -36,7 +36,7 @@
     "latitude": 10.452183828665106,
     "longitude": -66.8714106516617,
     "radius": 80,
-    "info": "POI asociado al modelo torrehumboldt.glb.",
+    "info": "revista torre humboldt",
     "modelId": "torrehumboldt"
   },
   {
@@ -44,7 +44,7 @@
     "latitude": 10.451963627694058,
     "longitude": -66.87266128901977,
     "radius": 80,
-    "info": "POI asociado al modelo concresa.glb.",
+    "info": "revista concresa, de prueba",
     "modelId": "concresa"
   }
 ]

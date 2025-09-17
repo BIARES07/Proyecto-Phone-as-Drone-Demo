@@ -12,9 +12,9 @@ GPS: PHONE -> `gps-update` (con `heading`) => broadcast `gps-from-phone`; si den
 WebRTC: PHONE crea `webrtc-offer` -> operadores; operador crea `webrtc-answer` -> teléfono. ICE: cada lado -> backend -> lado opuesto (`operator-room` / `phone-room`). Al desconectar teléfono => `phone-disconnected` y operador limpia PeerConnection.
 
 ## 3. Eventos Socket.IO
-Cliente→Servidor: `register-client {role:'PHONE'|'OPERATOR',sessionId?}` | `gps-update {lat,lon,alt?,heading?}` | `webrtc-offer {sdp}` | `webrtc-answer {sdp}` (solo operador) | `webrtc-ice-candidate {candidate}` | `operator-ping {seq}` (ack para RTT).
-Servidor→Operador: `phone-connected {sessionId?}` | `phone-reconnected {sessionId}` | `phone-disconnected` | `gps-from-phone {lat,lon,alt?,heading?}` | `poi-in-range {...}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}`.
-Servidor→Teléfono: `webrtc-answer {sdp}` | `webrtc-ice-candidate {candidate}`.
+Cliente→Servidor: `register-client {role:'PHONE'|'OPERATOR',sessionId?}` | `gps-update {lat,lon,alt?,heading?}` | `webrtc-offer {sdp}` | `webrtc-answer {sdp}` (solo operador) | `webrtc-ice-candidate {candidate}` | `operator-ping {seq}` (ack para RTT) | `phone-state {...}` (estado del teléfono hacia operador).
+Servidor→Operador: `phone-connected {sessionId?}` | `phone-reconnected {sessionId}` | `phone-disconnected` | `gps-from-phone {lat,lon,alt?,heading?}` | `poi-in-range {...}` | `webrtc-offer {sdp}` | `webrtc-ice-candidate {candidate}` | `phone-state {...}`.
+Servidor→Teléfono: `webrtc-answer {sdp}` | `webrtc-ice-candidate {candidate}` | `operator-state {...}` (estado del operador hacia teléfono).
 
 ## 4. WebRTC Detalles
 1 PC activa; resiliencia: teléfono intenta `ICE restart` si `disconnected/failed`, y recrea PC si no recupera en ~8s. STUN único `stun:stun.l.google.com:19302` (sin TURN). Operador: cierra PC previa al recibir nueva oferta. (DataChannel aún no implementado.)
@@ -36,6 +36,15 @@ Reemplaza al antiguo `InfoPanel` único. Ahora se mantiene un `Map` en memoria e
 
  - Modelos fijos en mapa (con posible highlight por `modelId` si aplica): `calles` (`/calles.glb`), `edificios` (`/edificios.glb`), `44` (`/44.glb`), `piramide` (`/piramide.glb`), `torrehumboldt` (`/torrehumboldt.glb`) y `concresa` (`/concresa.glb`). POIs añadidos para estos tres últimos con `modelId` correspondiente.
  - Campo `info` de los POIs acepta Markdown (GFM) y se renderiza en el panel con `react-markdown`.
+
+### Estado Espejo Operador↔Teléfono (Nuevo)
+- Operador emite periódicamente `operator-state { connectionState, videoOk, secondsSinceFrame }`.
+- Teléfono escucha `operator-state` y muestra estado (mini banner).
+- Teléfono emite `phone-state { connectionState, ts }` en cambios de conexión; operador lo puede usar para telemetría futura.
+
+### Mejoras Teléfono
+- Botón “Cambiar Cámara” alterna `facingMode` (user/environment) con `replaceTrack` y renegociación (nueva offer).
+- Consola embebida se abre automáticamente al iniciar transmisión.
 
 
 ## DevModelEditor (Solo Desarrollo)

@@ -256,6 +256,31 @@ io.on('connection', (socket) => {
             console.error('[ERROR] operator-ping', e);
         }
     });
+
+    // Estado espejo: operador -> teléfono
+    socket.on('operator-state', (payload) => {
+        try {
+            const isOperator = connectedClients.operatorSocketIds.has(socket.id);
+            if (!isOperator) return;
+            // Reenviar al teléfono
+            if (connectedClients.phoneSocketId) {
+                io.to('phone-room').emit('operator-state', payload);
+            }
+        } catch (e) {
+            console.error('[ERROR] operator-state', e);
+        }
+    });
+
+    // Estado espejo: teléfono -> operadores
+    socket.on('phone-state', (payload) => {
+        try {
+            const isPhone = socket.id === connectedClients.phoneSocketId;
+            if (!isPhone) return;
+            io.to('operator-room').emit('phone-state', payload);
+        } catch (e) {
+            console.error('[ERROR] phone-state', e);
+        }
+    });
 });
 
 // G. Inicio del Servidor

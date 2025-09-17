@@ -89,10 +89,14 @@
     <video id="localVideo" autoplay muted playsinline></video>
 
     <!-- 3. Botón para iniciar la transmisión (requerido por los navegadores) -->
-    <button id="startButton">Iniciar Transmisión</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button id="startButton">Iniciar Transmisión</button>
+            <button id="switchCamBtn" disabled>Cambiar Cámara</button>
+        </div>
 
     <!-- 4. Div para mostrar el estado de la conexión y los permisos -->
     <div id="status">Presiona "Iniciar" para comenzar.</div>
+    <div id="operatorMirror" style="margin-top:6px; font-size:12px; color:#333;">Operador: sin estado</div>
 
     <!-- Contenedor de consola embebida -->
     <div id="embeddedConsoleWrapper" class="collapsed" aria-label="Embedded Console" role="region">

@@ -36,6 +36,7 @@ function App() {
   const [pingSeq, setPingSeq] = useState(0);
   const lastFrameTimeRef = useRef(Date.now());
   const [secondsSinceFrame, setSecondsSinceFrame] = useState(0);
+  const operatorStateTimerRef = useRef(null);
 
   // Estado para los modelos 3D editables (solo en modo desarrollo)
   // Modelos editables solo en desarrollo local
@@ -293,6 +294,21 @@ function App() {
       clearInterval(frameMonitorId.current);
     };
   }, [socket, pingSeq]);
+
+  // Emitir estado del operador hacia el teléfono (espejo)
+  useEffect(()=>{
+    if (!socket) return;
+    if (operatorStateTimerRef.current) clearInterval(operatorStateTimerRef.current);
+    operatorStateTimerRef.current = setInterval(()=>{
+      const payload = {
+        connectionState,
+        videoOk: !!(videoStream && videoStream.getVideoTracks().some(t=>t.readyState==='live')),
+        secondsSinceFrame
+      };
+      socket.emit('operator-state', payload);
+    }, 1000);
+    return ()=>{ if (operatorStateTimerRef.current) clearInterval(operatorStateTimerRef.current); };
+  }, [socket, connectionState, videoStream, secondsSinceFrame]);
 
   // Hook para detectar frames (API experimental requestVideoFrameCallback si existe)
   useEffect(()=>{

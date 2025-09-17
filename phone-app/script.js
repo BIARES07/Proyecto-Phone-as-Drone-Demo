@@ -12,6 +12,7 @@ let lastOfferAt = 0;
 let reconnectionCount = 0;
 let iceRestartCount = 0;
 let recreateCount = 0;
+let currentFacing = 'environment'; // 'user' | 'environment'
 
 // Parámetros de recuperación
 const RECOVERY_COOLDOWN_MS = 5000;
@@ -22,11 +23,13 @@ const CONNECTION_FAILED_GRACE_MS = 2000;
 const startButton = document.getElementById('startButton');
 const localVideo = document.getElementById('localVideo');
 const statusDiv = document.getElementById('status');
+const switchCamBtn = document.getElementById('switchCamBtn');
 
 // 2. Función de Inicialización Principal main()
 function main() {
     // Añade un event listener al startButton para el evento click
     startButton.addEventListener('click', startStreaming);
+    switchCamBtn.addEventListener('click', switchCamera);
     
     // Llama a initializeSocketConnection()
     initializeSocketConnection();
@@ -73,6 +76,18 @@ function initializeSocketConnection() {
     socket.on('webrtc-ice-candidate', (payload) => {
         handleNewICECandidate(payload);
     });
+
+    // Estado espejo desde el operador
+    socket.on('operator-state', (payload) => {
+        try {
+            const { connectionState, videoOk, secondsSinceFrame } = payload || {};
+            console.log('[MIRROR][PHONE] operator-state', payload);
+            const mirror = document.getElementById('operatorMirror');
+            if (mirror) {
+                mirror.textContent = `Operador: conn=${connectionState||'?'}, video=${videoOk?'OK':'NO'}, frameSilence=${secondsSinceFrame||0}s`;
+            }
+        } catch (e) { console.warn('[MIRROR][PHONE] operator-state error', e); }
+    });
 }
 
 // 4. Lógica de Streaming y Hardware
@@ -83,14 +98,25 @@ async function startStreaming() {
 
     try {
         // Solicitar permisos para video y audio
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacing }, audio: true });
         localVideo.srcObject = localStream;
         statusDiv.textContent = 'Permisos concedidos. Iniciando transmisión...';
+        switchCamBtn.disabled = false;
 
         // Activar GPS y WebRTC
     activateGPS(socket);
     startWebRTCCall(socket, localStream);
     isStreaming = true;
+
+    // Abrir consola embebida automáticamente al iniciar transmisión
+    try {
+        const wrapper = document.getElementById('embeddedConsoleWrapper');
+        const btnToggle = document.getElementById('toggleConsoleBtn');
+        if (wrapper && btnToggle && wrapper.classList.contains('collapsed')) {
+            wrapper.classList.remove('collapsed');
+            btnToggle.textContent = 'Ocultar';
+        }
+    } catch {}
 
     } catch (error) {
         statusDiv.textContent = 'Error al obtener permisos: ' + error.message;
@@ -156,6 +182,7 @@ async function startWebRTCCall(socket, stream) {
         const state = peerConnection.connectionState;
         console.log('Estado de la conexión WebRTC:', state);
         statusDiv.textContent = `Estado WebRTC: ${state}`;
+        try { socket.emit('phone-state', { connectionState: state, ts: Date.now() }); } catch {}
         if (state === 'disconnected') {
             setTimeout(() => {
                 if (peerConnection && peerConnection.connectionState === 'disconnected') {
@@ -303,6 +330,30 @@ function recreatePeerConnection() {
     startWebRTCCall(socket, localStream);
     pendingRecovery = false;
     updateStatus('PeerConnection recreada', 'info');
+}
+
+// --- Cambio de cámara ---
+async function switchCamera() {
+    try {
+        if (!isStreaming) return;
+        currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+        const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacing }, audio: true });
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        const sender = peerConnection?.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender && newVideoTrack) {
+            await sender.replaceTrack(newVideoTrack);
+            // Actualizar preview local
+            const oldTracks = localStream.getTracks();
+            oldTracks.forEach(t => t.stop());
+            localStream = newStream;
+            localVideo.srcObject = localStream;
+            // Renegociar (oferta nueva)
+            await createAndSendOffer();
+        }
+    } catch (e) {
+        console.error('[PHONE] Error al cambiar cámara', e);
+        updateStatus('No se pudo cambiar la cámara', 'error');
+    }
 }
 
 function updateStatus(msg, level='info') {
