@@ -13,6 +13,8 @@
     "cesium": "^1.133.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
     "resium": "^1.19.0-beta.1",
     "socket.io-client": "^4.8.1"
   },

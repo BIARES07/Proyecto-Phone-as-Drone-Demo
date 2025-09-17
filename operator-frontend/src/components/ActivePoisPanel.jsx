@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './ActivePoisPanel.css';
 
 /**
@@ -98,7 +100,11 @@ const ActivePoisPanel = ({ poisMap, phonePosition, onSelect, ttlMs }) => {
                 </div>
                 {poi.modelId && <span className="model-tag" title="Modelo asociado">{poi.modelId}</span>}
               </div>
-              <div className="poi-info">{poi.info}</div>
+              <div className="poi-info">
+                {poi.info && (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{poi.info}</ReactMarkdown>
+                )}
+              </div>
               <div className="meta-grid">
                 <div><label>Lat</label><span>{formatCoord(poi.latitude, true)}</span></div>
                 <div><label>Lon</label><span>{formatCoord(poi.longitude, false)}</span></div>

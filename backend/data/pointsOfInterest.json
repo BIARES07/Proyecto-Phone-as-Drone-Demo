@@ -12,7 +12,7 @@
     "latitude": 10.1048760366,
     "longitude": -66.767352303,
     "radius": 70,
-    "info": "Misión Bravo: Punto de encuentro secundario. Vigilar actividad en la zona.",
+    "info": "# Plaza Central\n\n**Misión Bravo** — punto de encuentro secundario. _Vigilar actividad en la zona._\n\n> \"La plaza es el corazón de la ciudad\" — Anónimo\n\n- Elemento destacado 1\n- Elemento destacado 2\n- Soporta `inline code` y ~~tachado~~ (GFM)\n\n1. Paso uno\n2. Paso dos\n3. Paso tres\n\nTareas (GFM):\n- [x] Señalización\n- [ ] Render 3D\n- [ ] Integrar controles\n\nTabla (GFM):\n\n| Indicador | Valor |\n| --- | ---: |\n| Latitud | 10.1048760366 |\n| Longitud | -66.767352303 |\n| Radio | 70 m |\n\nBloque de código:\n\n```json\n{\n  \"poi\": \"Plaza Central\",\n  \"demoMarkdown\": true\n}\n```\n\nEnlace útil: [Documentación Cesium](https://cesium.com/learn/)\n\n---\n\nNota: Este POI usa Markdown (GFM) y se renderiza en el panel.",
     "modelId": "calles"
   }
   ,{
@@ -22,5 +22,29 @@
     "radius": 50,
     "info": "Misión Charlie: Referencia para el modelo 44.glb.",
     "modelId": "44"
+  },
+  {
+    "name": "CC Pirámide",
+    "latitude": 10.453048860824024,
+    "longitude": -66.87109488729031,
+    "radius": 80,
+    "info": "**Institución relevante:** FUNDACION MURONTO\n\n**Abordos:** 1 oficial general, 7 oficiales, 3 tropas\n\n**Comandante:** VA Carlos Correa Peñaloza",
+    "modelId": "piramide"
+  },
+  {
+    "name": "Torre Humboldt",
+    "latitude": 10.452183828665106,
+    "longitude": -66.8714106516617,
+    "radius": 80,
+    "info": "POI asociado al modelo torrehumboldt.glb.",
+    "modelId": "torrehumboldt"
+  },
+  {
+    "name": "CC Concresa",
+    "latitude": 10.451963627694058,
+    "longitude": -66.87266128901977,
+    "radius": 80,
+    "info": "POI asociado al modelo concresa.glb.",
+    "modelId": "concresa"
   }
 ]

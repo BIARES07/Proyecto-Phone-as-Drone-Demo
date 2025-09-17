@@ -85,6 +85,90 @@ const FixedModel44 = ({ isHighlighted }) => {
   );
 };
 
+// 1d. Modelo Fijo adicional: 'piramide.glb' con posición y orientación proporcionadas
+// Soporta resaltado si su POI está activo (modelId 'piramide').
+const FixedPiramideModel = ({ isHighlighted }) => {
+  const position = Cartesian3.fromDegrees(-66.87109488729031, 10.453048860824024, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+  return (
+    <Entity
+      name="CC PIRAMIDE"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/piramide.glb',
+        scale: 2,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0,
+        colorBlendAmount: 0.5,
+      }}
+    />
+  );
+};
+
+// 1e. Modelo Fijo adicional: 'torrehumboldt.glb' con posición y orientación proporcionadas
+// Preparado para resaltado futuro (modelId 'torrehumboldt').
+const FixedTorreHumboldtModel = ({ isHighlighted }) => {
+  const position = Cartesian3.fromDegrees(-66.8714106516617, 10.452183828665106, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+  return (
+    <Entity
+      name="TORRE HUMBOLDT"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/torrehumboldt.glb',
+        scale: 5,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0,
+        colorBlendAmount: 0.5,
+      }}
+    />
+  );
+};
+
+// 1f. Modelo Fijo adicional: 'concresa.glb' con posición y orientación proporcionadas
+// Preparado para resaltado futuro (modelId 'concresa').
+const FixedConcresaModel = ({ isHighlighted }) => {
+  const position = Cartesian3.fromDegrees(-66.87266128901977, 10.451963627694058, 0);
+  const orientation = Transforms.headingPitchRollQuaternion(
+    position,
+    new HeadingPitchRoll(
+      CesiumMath.toRadians(56),
+      CesiumMath.toRadians(0),
+      CesiumMath.toRadians(0)
+    )
+  );
+  return (
+    <Entity
+      name="CC CONCRESA"
+      position={position}
+      orientation={orientation}
+      model={{
+        uri: '/concresa.glb',
+        scale: 3,
+        color: isHighlighted ? Color.YELLOW.withAlpha(0.5) : Color.WHITE,
+        colorBlendMode: isHighlighted ? 1 : 0,
+        colorBlendAmount: 0.5,
+      }}
+    />
+  );
+};
+
 const MapView = ({ position, activePoi, editableModels = [] }) => {
   const viewerRef = useRef(null);
   const [activePoiModels, setActivePoiModels] = useState(new Set());
@@ -199,6 +283,9 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
       <FixedCallesModel isHighlighted={activePoiModels.has('calles')} />
   <FixedEdificiosModel isHighlighted={activePoiModels.has('edificios')} />
 	<FixedModel44 isHighlighted={activePoiModels.has('44')} />
+      <FixedPiramideModel isHighlighted={activePoiModels.has('piramide')} />
+  <FixedTorreHumboldtModel isHighlighted={activePoiModels.has('torrehumboldt')} />
+  <FixedConcresaModel isHighlighted={activePoiModels.has('concresa')} />
 
       {editableModels.map((model) => {
         const position = Cartesian3.fromDegrees(model.lon, model.lat, model.height);

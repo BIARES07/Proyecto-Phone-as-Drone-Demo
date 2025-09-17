@@ -34,14 +34,9 @@ Ventana PIP draggable. Estados WebRTC en clases `pc-state-*`. Panel `GpsDisplay`
 ### Panel de POIs Activos (Nuevo)
 Reemplaza al antiguo `InfoPanel` único. Ahora se mantiene un `Map` en memoria en el frontend con POIs "activos" (último evento `poi-in-range` dentro de un TTL).
 
-- Componente: `ActivePoisPanel` (lateral derecho, scrollable).
-- Al recibir `poi-in-range` se actualiza/crea entrada: `{ name, info, latitude, longitude, radius, modelId?, firstSeen, lastSeen, hits }`.
-- TTL configurable (actual 10s). Limpieza por intervalo (3s) elimina entradas expiradas (`now - lastSeen > TTL`).
-- Orden de visualización: distancia ascendente (si calculable) y luego más recientes.
-- Cada card muestra: nombre, tiempo relativo (`lastSeen`), info, lat, lon, radio, distancia dinámica, número de detecciones (hits), primera detección y (si aplica) `modelId`.
-- Barra de proximidad (gradiente) visible solo si el dispositivo sigue dentro del radio; porcentaje = `1 - (dist/radius)`.
-- Click sobre card fija el `activePOI` para resaltar en el mapa (lógica previa preservada para highlight de modelos). Modelos fijos soportan highlight por `modelId`: `calles`, `edificios` y ahora `44` (nuevo POI "Punto Modelo 44" asociado a `44.glb`).
-- Componente antiguo `InfoPanel` queda comentado (puede eliminarse en refactor futuro).
+ - Modelos fijos en mapa (con posible highlight por `modelId` si aplica): `calles` (`/calles.glb`), `edificios` (`/edificios.glb`), `44` (`/44.glb`), `piramide` (`/piramide.glb`), `torrehumboldt` (`/torrehumboldt.glb`) y `concresa` (`/concresa.glb`). POIs añadidos para estos tres últimos con `modelId` correspondiente.
+ - Campo `info` de los POIs acepta Markdown (GFM) y se renderiza en el panel con `react-markdown`.
+
 
 ## DevModelEditor (Solo Desarrollo)
 - En `operator-frontend/src/components/DevModelEditor.jsx` (+`.css`), existe un editor de modelos 3D que permite añadir múltiples archivos `.glb`, ajustar posición (lon, lat, altura) y orientación (heading, pitch, roll), y copiar el fragmento de JSX generado.
