@@ -216,9 +216,6 @@ function App() {
       newSocket.disconnect();
       window.removeEventListener('keydown', keyHandler);
       clearInterval(pruneId);
-      clearInterval(watchdogId);
-      clearInterval(pingIntervalId);
-      clearInterval(frameMonitorId);
     };
   }, []); // El array vacío asegura que se ejecute solo una vez
 
@@ -320,6 +317,10 @@ function App() {
     return ()=>{ if(handle) handle(); };
   }, [videoStream]);
 
+  // Helpers para estilos de chips
+  const chipLevelForRtt = (r) => (r < 150 ? 'ok' : r < 800 ? 'warn' : 'bad');
+  const chipLevelForFrame = (s) => (s < 3 ? 'ok' : s < 12 ? 'warn' : 'bad');
+
   const pipClasses = [
     'video-container',
     pipFullscreen ? 'pip-fullscreen':'',
@@ -347,8 +348,29 @@ function App() {
         </div>
         <VideoStream stream={videoStream} />
         {!isConnected && <div className="status-overlay">Esperando conexión del dispositivo...</div>}
-        {telemetryLost && <div className="status-overlay warn">Telemetry Lost (&gt;10s sin GPS)</div>}
-        {rttMs != null && <div className="metrics-overlay">RTT {rttMs}ms | Frame silence {secondsSinceFrame}s</div>}
+        {telemetryLost && <div className="status-overlay warn">Sin telemetría (&gt;10s sin GPS)</div>}
+      </div>
+      {/* Status Dock: métricas generales fuera del PiP */}
+      <div className="status-dock">
+        {rttMs != null && (
+          <span
+            className={`status-chip ${chipLevelForRtt(rttMs)}`}
+            title="RTT: tiempo ida y vuelta del ping de señalización (Socket.IO)"
+          >
+            RTT {rttMs}ms
+          </span>
+        )}
+        <span
+          className={`status-chip ${chipLevelForFrame(secondsSinceFrame)}`}
+          title="Segundos desde el último frame de video recibido"
+        >
+          Frames {secondsSinceFrame}s
+        </span>
+        {telemetryLost && (
+          <span className="status-chip bad" title="No se reciben datos de GPS del teléfono">
+            Telemetry Lost
+          </span>
+        )}
       </div>
       <div className="map-container">
         <MapView position={phonePosition} activePoi={activePOI} editableModels={editableModels} />
