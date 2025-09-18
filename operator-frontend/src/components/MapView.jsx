@@ -1,6 +1,22 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Viewer, Entity, ImageryLayer } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, createWorldImagery, createWorldTerrain, UrlTemplateImageryProvider } from 'cesium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, UrlTemplateImageryProvider } from 'cesium';
+// createWorldImagery & createWorldTerrain pueden no estar tree-shakeados / disponibles según bundler
+// Los obtendremos de window.Cesium si existen para evitar TypeError.
+const getCesiumFactory = (name) => {
+  if (typeof window !== 'undefined' && window.Cesium && typeof window.Cesium[name] === 'function') {
+    return window.Cesium[name];
+  }
+  return undefined;
+};
+const createWorldImagerySafe = (...args) => {
+  const fn = getCesiumFactory('createWorldImagery');
+  return fn ? fn(...args) : null;
+};
+const createWorldTerrainSafe = (...args) => {
+  const fn = getCesiumFactory('createWorldTerrain');
+  return fn ? fn(...args) : null;
+};
 
 // 1. Modelo Fijo: Componente para tu modelo 'calles.glb' con su posición y rotación hardcodeadas.
 const FixedCallesModel = ({ isHighlighted }) => {
@@ -186,18 +202,26 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   }, []);
 
   // Proveedores de imagery disponibles
-  const imageryProviders = useMemo(() => ({
-    'Aerial': () => createWorldImagery({ style: 'AERIAL' }),
-    'Aerial+Labels': () => createWorldImagery({ style: 'AERIAL_WITH_LABELS' }),
-    'OSM': () => new UrlTemplateImageryProvider({
-      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      credit: '© OpenStreetMap contributors'
-    }),
-    'CartoDark': () => new UrlTemplateImageryProvider({
-      url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-      credit: '© Carto'
-    })
-  }), []);
+  const imageryProviders = useMemo(() => {
+    const base = {
+      'OSM': () => new UrlTemplateImageryProvider({
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        credit: '© OpenStreetMap contributors'
+      }),
+      'CartoDark': () => new UrlTemplateImageryProvider({
+        url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        credit: '© Carto'
+      })
+    };
+    // Solo añadimos Aerial si la factory existe
+    const aerialFn = () => createWorldImagerySafe({ style: 'AERIAL' });
+    const aerialLblFn = () => createWorldImagerySafe({ style: 'AERIAL_WITH_LABELS' });
+    if (createWorldImagerySafe()) { // primera llamada devolverá instancia o null
+      base['Aerial'] = aerialFn;
+      base['Aerial+Labels'] = aerialLblFn;
+    }
+    return base;
+  }, []);
 
   // Memo del imageryProvider activo (se recrea al cambiar clave)
   const activeImageryProvider = useMemo(() => {
@@ -213,7 +237,8 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   // Terreno (opcional, requiere token Ion para world terrain)
   const terrainProvider = useMemo(() => {
     try {
-      return createWorldTerrain();
+      const t = createWorldTerrainSafe();
+      return t || undefined;
     } catch (e) {
       console.warn('[Cesium] No se pudo crear terrain provider:', e);
       return undefined;
@@ -308,6 +333,9 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
             }}
           >{key}</button>
         ))}
+        {!createWorldImagerySafe() && (
+          <span style={{ color: '#fdd', marginLeft: 8 }}>Aerial no disponible (build Cesium)</span>
+        )}
       </div>
       {position && (
         <>
