@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
-import { Viewer, Entity } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll } from 'cesium';
+import { Viewer, Entity, ImageryLayer } from 'resium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, createWorldImagery, createWorldTerrain, UrlTemplateImageryProvider } from 'cesium';
 
 // 1. Modelo Fijo: Componente para tu modelo 'calles.glb' con su posición y rotación hardcodeadas.
 const FixedCallesModel = ({ isHighlighted }) => {
@@ -174,6 +174,52 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   const [activePoiModels, setActivePoiModels] = useState(new Set());
   const activePoiTimeouts = useRef(new Map());
 
+  // === Base Layers ===
+  const [baseLayerKey, setBaseLayerKey] = useState('Aerial');
+
+  // Configurar token Ion si existe
+  useEffect(() => {
+    const token = import.meta.env.VITE_CESIUM_ION_TOKEN;
+    if (token && token !== 'REEMPLAZA_CON_TU_TOKEN') {
+      Ion.defaultAccessToken = token;
+    }
+  }, []);
+
+  // Proveedores de imagery disponibles
+  const imageryProviders = useMemo(() => ({
+    'Aerial': () => createWorldImagery({ style: 'AERIAL' }),
+    'Aerial+Labels': () => createWorldImagery({ style: 'AERIAL_WITH_LABELS' }),
+    'OSM': () => new UrlTemplateImageryProvider({
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      credit: '© OpenStreetMap contributors'
+    }),
+    'CartoDark': () => new UrlTemplateImageryProvider({
+      url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      credit: '© Carto'
+    })
+  }), []);
+
+  // Memo del imageryProvider activo (se recrea al cambiar clave)
+  const activeImageryProvider = useMemo(() => {
+    const factory = imageryProviders[baseLayerKey];
+    try {
+      return factory ? factory() : undefined;
+    } catch (e) {
+      console.warn('[Cesium] Error creando imagery provider', e);
+      return undefined;
+    }
+  }, [imageryProviders, baseLayerKey]);
+
+  // Terreno (opcional, requiere token Ion para world terrain)
+  const terrainProvider = useMemo(() => {
+    try {
+      return createWorldTerrain();
+    } catch (e) {
+      console.warn('[Cesium] No se pudo crear terrain provider:', e);
+      return undefined;
+    }
+  }, []);
+
   useEffect(() => {
     if (activePoi && activePoi.modelId) {
       const { modelId } = activePoi;
@@ -239,7 +285,30 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   }, [position]);
 
   return (
-    <Viewer full ref={viewerRef}>
+    <Viewer
+      full
+      ref={viewerRef}
+      baseLayerPicker={false}
+      imageryProvider={activeImageryProvider}
+      terrain={terrainProvider}
+    >
+      {/* Selector de capas base */}
+      <div style={{
+        position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 200, background: 'rgba(0,0,0,0.55)', padding: '4px 8px', borderRadius: 6,
+        fontSize: 12, display: 'flex', gap: 6, backdropFilter: 'blur(4px)'
+      }}>
+        {Object.keys(imageryProviders).map(key => (
+          <button
+            key={key}
+            onClick={() => setBaseLayerKey(key)}
+            style={{
+              cursor: 'pointer', background: key === baseLayerKey ? '#2ecc71' : '#333',
+              color: '#fff', border: '1px solid #555', padding: '2px 6px', borderRadius: 4
+            }}
+          >{key}</button>
+        ))}
+      </div>
       {position && (
         <>
           {typeof position.accuracy === 'number' && (
