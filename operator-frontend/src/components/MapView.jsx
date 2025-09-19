@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
-import { Viewer, Entity, ImageryLayer } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, UrlTemplateImageryProvider } from 'cesium';
+import { Viewer, Entity } from 'resium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, UrlTemplateImageryProvider, IonImageryProvider } from 'cesium';
 // createWorldImagery & createWorldTerrain pueden no estar tree-shakeados / disponibles según bundler
 // Los obtendremos de window.Cesium si existen para evitar TypeError.
 const getCesiumFactory = (name) => {
@@ -191,7 +191,16 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   const activePoiTimeouts = useRef(new Map());
 
   // === Base Layers ===
-  const [baseLayerKey, setBaseLayerKey] = useState('Aerial');
+  const initialLayer = () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('map.baseLayer');
+      if (stored) return stored;
+    }
+    return 'OSM';
+  };
+  const [baseLayerKey, setBaseLayerKey] = useState(initialLayer);
+  const [availableKeys, setAvailableKeys] = useState(['OSM','CartoDark']);
+  const [layerStatus, setLayerStatus] = useState({}); // key -> 'loading' | 'ready' | 'error'
 
   // Configurar token Ion si existe
   useEffect(() => {
@@ -201,38 +210,83 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
     }
   }, []);
 
-  // Proveedores de imagery disponibles
-  const imageryProviders = useMemo(() => {
-    const base = {
-      'OSM': () => new UrlTemplateImageryProvider({
-        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        credit: '© OpenStreetMap contributors'
-      }),
-      'CartoDark': () => new UrlTemplateImageryProvider({
-        url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        credit: '© Carto'
-      })
-    };
-    // Solo añadimos Aerial si la factory existe
-    const aerialFn = () => createWorldImagerySafe({ style: 'AERIAL' });
-    const aerialLblFn = () => createWorldImagerySafe({ style: 'AERIAL_WITH_LABELS' });
-    if (createWorldImagerySafe()) { // primera llamada devolverá instancia o null
-      base['Aerial'] = aerialFn;
-      base['Aerial+Labels'] = aerialLblFn;
+  // Persistir selección de capa
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('map.baseLayer', baseLayerKey);
     }
-    return base;
+  }, [baseLayerKey]);
+
+  // Añadir claves Ion si hay token
+  useEffect(() => {
+    const token = Ion.defaultAccessToken || import.meta.env.VITE_CESIUM_ION_TOKEN;
+    if (token) {
+      setAvailableKeys(k => k.includes('Aerial') ? k : [...k, 'Aerial','Aerial+Labels']);
+    }
   }, []);
 
-  // Memo del imageryProvider activo (se recrea al cambiar clave)
-  const activeImageryProvider = useMemo(() => {
-    const factory = imageryProviders[baseLayerKey];
-    try {
-      return factory ? factory() : undefined;
-    } catch (e) {
-      console.warn('[Cesium] Error creando imagery provider', e);
-      return undefined;
-    }
-  }, [imageryProviders, baseLayerKey]);
+  // Efecto imperativo: reemplazar capa base con manejo asíncrono seguro (fromAssetId)
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+    const collection = viewer.imageryLayers;
+    let cancelled = false;
+    // limpiar layers actuales
+    for (let i = collection.length - 1; i >= 0; i--) collection.remove(collection.get(i), true);
+    setLayerStatus(s => ({...s, [baseLayerKey]: 'loading'}));
+
+    const finishError = (msg, err) => {
+      if (cancelled) return;
+      if (err) console.warn(msg, err);
+      setLayerStatus(s => ({...s, [baseLayerKey]: 'error'}));
+    };
+    const finishOk = () => {
+      if (cancelled) return;
+      setLayerStatus(s => ({...s, [baseLayerKey]: 'ready'}));
+    };
+
+    const addProvider = (prov) => {
+      if (cancelled) return;
+      collection.addImageryProvider(prov);
+      finishOk();
+    };
+
+    (async () => {
+      try {
+        if (baseLayerKey === 'OSM') {
+          return addProvider(new UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            credit: '© OpenStreetMap contributors'
+          }));
+        }
+        if (baseLayerKey === 'CartoDark') {
+          return addProvider(new UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+            credit: '© Carto'
+          }));
+        }
+        if (baseLayerKey === 'Aerial') {
+            const p = await IonImageryProvider.fromAssetId(2);
+            return addProvider(p);
+        }
+        if (baseLayerKey === 'Aerial+Labels') {
+            const [base, labels] = await Promise.all([
+              IonImageryProvider.fromAssetId(2),
+              IonImageryProvider.fromAssetId(3)
+            ]);
+            if (cancelled) return;
+            collection.addImageryProvider(base);
+            collection.addImageryProvider(labels);
+            return finishOk();
+        }
+        finishError('[Cesium] Clave de capa desconocida: '+baseLayerKey);
+      } catch (err) {
+        finishError('[Cesium] Error cargando capa '+baseLayerKey, err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [baseLayerKey]);
 
   // Terreno (opcional, requiere token Ion para world terrain)
   const terrainProvider = useMemo(() => {
@@ -240,7 +294,6 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
       const t = createWorldTerrainSafe();
       return t || undefined;
     } catch (e) {
-      console.warn('[Cesium] No se pudo crear terrain provider:', e);
       return undefined;
     }
   }, []);
@@ -314,7 +367,6 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
       full
       ref={viewerRef}
       baseLayerPicker={false}
-      imageryProvider={activeImageryProvider}
       terrain={terrainProvider}
     >
       {/* Selector de capas base */}
@@ -323,7 +375,7 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
         zIndex: 200, background: 'rgba(0,0,0,0.55)', padding: '4px 8px', borderRadius: 6,
         fontSize: 12, display: 'flex', gap: 6, backdropFilter: 'blur(4px)'
       }}>
-        {Object.keys(imageryProviders).map(key => (
+        {availableKeys.map(key => (
           <button
             key={key}
             onClick={() => setBaseLayerKey(key)}
@@ -333,10 +385,17 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
             }}
           >{key}</button>
         ))}
-        {!createWorldImagerySafe() && (
-          <span style={{ color: '#fdd', marginLeft: 8 }}>Aerial no disponible (build Cesium)</span>
+        {layerStatus[baseLayerKey] === 'loading' && (
+          <span style={{ color: '#ffc' }}>Cargando...</span>
+        )}
+        {layerStatus[baseLayerKey] === 'error' && (
+          <span style={{ color: '#f88' }}>Error capa</span>
+        )}
+        {['Aerial','Aerial+Labels'].some(k=>availableKeys.includes(k)) === false && (
+          <span style={{ color: '#ddd', fontStyle: 'italic' }}>Sin capas Ion (token?)</span>
         )}
       </div>
+      {/* Las capas ahora se añaden imperativamente en viewer.imageryLayers */}
       {position && (
         <>
           {typeof position.accuracy === 'number' && (
