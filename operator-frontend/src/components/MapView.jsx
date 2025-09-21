@@ -1,6 +1,26 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Viewer, Entity } from 'resium';
-import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, UrlTemplateImageryProvider, IonImageryProvider } from 'cesium';
+import { Cartesian3, Math as CesiumMath, Color, HeightReference, Transforms, HeadingPitchRoll, Ion, UrlTemplateImageryProvider, IonImageryProvider, Matrix4, Quaternion, HeadingPitchRoll as HPR, CallbackProperty, ColorMaterialProperty } from 'cesium';
+import { computeBearing } from '../lib/geo';
+/**
+ * Dron Simbólico (Implementación inicial)
+ * --------------------------------------------------------------
+ * Objetivo: representar el teléfono como un “dron” 3D sin cargar archivos glTF externos.
+ * Estrategia: composición de Entities primitivas (box, ellipse) con offsets ENU.
+ * - Cuerpo: box naranja.
+ * - Brazos: 4 boxes grises (se colocan a mitad del trayecto hacia la hélice para simular barra completa transversal).
+ * - Hélices: discos blancos semitransparentes (blur; no animación por ahora).
+ * - Elevación simbólica fija (20m) para dar separación visual del terreno/capas.
+ * - Orientación: se usa heading (si disponible) para rotar todo el conjunto.
+ * Limitaciones actuales:
+ * - No hay jerk smoothing interno en la posición (solo lo que ya hace la capa de heading derivado).
+ * - Brazos no rotan individualmente; animación de hélices pendiente (posible future postRender hook).
+ * Futuras mejoras previstas:
+ * 1) Encapsular en helper buildDroneParts() (Tarea #8) para limpieza.
+ * 2) Añadir color dinámico según estado (telemetría perdida, etc.).
+ * 3) Migración a glTF inline (data URI) si se requiere malla optimizada y animación.
+ * 4) Trail/Path dinámico y escala adaptativa según zoom.
+ */
 // createWorldImagery & createWorldTerrain pueden no estar tree-shakeados / disponibles según bundler
 // Los obtendremos de window.Cesium si existen para evitar TypeError.
 const getCesiumFactory = (name) => {
@@ -335,6 +355,224 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
   const entityId = 'phone-entity';
   const cartesianPos = position ? Cartesian3.fromDegrees(position.lon, position.lat, 0) : undefined;
 
+  // === DRON SIMBÓLICO 3D (Refactor + mejoras) ===
+  // Mejores visuales: motores, nariz, línea de altitud, escala dinámica según distancia de cámara.
+  const DRONE_ALT_OFFSET_METERS = 20;
+  const BASE_BODY_SIZE = 0.55;
+  const BASE_ARM_SPAN = 1.1;
+  const BASE_ARM_THICKNESS = 0.08;
+  const BASE_PROP_RADIUS = 0.38;
+  const BASE_MOTOR_HEIGHT = 0.12;
+  const BASE_MOTOR_RADIUS = 0.09;
+  const NOSE_OFFSET = 0.65; // metros hacia delante para cono/nariz
+
+  // Estado de escala (se actualiza postRender para seguir movimiento de cámara sin forzar demasiados rerenders)
+  const [droneScale, setDroneScale] = useState(1);
+
+  // Utilidad: transformar offset ENU
+  const computeOffsetPosition = (baseCart, dx, dy, dz = 0) => {
+    if (!baseCart) return undefined;
+    const enu = Transforms.eastNorthUpToFixedFrame(baseCart);
+    const local = new Cartesian3(dx, dy, dz);
+    return Matrix4.multiplyByPoint(enu, local, new Cartesian3());
+  };
+
+  const droneBasePosition = useMemo(() => {
+    if (!position) return undefined;
+    return Cartesian3.fromDegrees(position.lon, position.lat, DRONE_ALT_OFFSET_METERS);
+  }, [position]);
+
+  // Calcular heading derivado si no está presente
+  const derivedHeading = useMemo(() => {
+    if (!position) return null;
+    if (typeof position.heading === 'number' && !isNaN(position.heading)) return position.heading;
+    // Si no hay heading, intentar derivar de movimiento (requiere prevPosition)
+    if (position.prev && typeof position.prev.lat === 'number' && typeof position.prev.lon === 'number') {
+      const bearing = computeBearing(position.prev.lat, position.prev.lon, position.lat, position.lon);
+      return bearing;
+    }
+    return null;
+  }, [position]);
+
+  const droneOrientation = useMemo(() => {
+    if (!droneBasePosition) return undefined;
+    const headingValue = derivedHeading;
+    if (headingValue == null) return undefined;
+    const hpr = new HPR(CesiumMath.toRadians(headingValue), 0, 0);
+    return Transforms.headingPitchRollQuaternion(droneBasePosition, hpr);
+  }, [droneBasePosition, derivedHeading]);
+
+  // Actualizar escala dinámica según distancia cámara-dron (postRender para suavidad)
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer || !droneBasePosition) return;
+    const handler = () => {
+      const camPos = viewer.camera.position;
+      const dist = Cartesian3.distance(camPos, droneBasePosition);
+      // Escala empírica: escalado lineal limitado
+      const target = Math.min(3, Math.max(0.6, dist / 500));
+      // Evitar demasiados renders: sólo actualizar si diferencia > 5%
+      setDroneScale(prev => Math.abs(prev - target) > 0.05 ? target : prev);
+    };
+    viewer.scene.postRender.addEventListener(handler);
+    return () => viewer.scene.postRender.removeEventListener(handler);
+  }, [droneBasePosition]);
+
+  const propSpinRef = useRef({ t: 0 });
+
+  // Animación hélices: incrementar tiempo en postRender y forzar re-render ligero mediante setState en escala ya existente
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+    const spinHandler = () => {
+      propSpinRef.current.t += viewer.clock.deltaTime; // segundos
+    };
+    viewer.scene.postRender.addEventListener(spinHandler);
+    return () => viewer.scene.postRender.removeEventListener(spinHandler);
+  }, []);
+
+  // Construir Entities del dron (memo para minimizar trabajo)
+  const droneEntities = useMemo(() => {
+    if (!droneBasePosition) return null;
+    const ARM_SPAN = BASE_ARM_SPAN * droneScale;
+    const BODY_SIZE = BASE_BODY_SIZE * droneScale;
+    const ARM_THICKNESS = BASE_ARM_THICKNESS * droneScale;
+    const PROP_RADIUS = BASE_PROP_RADIUS * droneScale;
+    const MOTOR_H = BASE_MOTOR_HEIGHT * droneScale;
+    const MOTOR_R = BASE_MOTOR_RADIUS * droneScale;
+
+    const arms = [
+      { key: 'arm-east', dx: ARM_SPAN, dy: 0 },
+      { key: 'arm-west', dx: -ARM_SPAN, dy: 0 },
+      { key: 'arm-north', dx: 0, dy: ARM_SPAN },
+      { key: 'arm-south', dx: 0, dy: -ARM_SPAN },
+    ];
+    const props = arms.map(a => ({ key: 'prop-' + a.key.split('-')[1], dx: a.dx, dy: a.dy }));
+    const motors = props; // coinciden en posición base
+
+    const armEntities = arms.map(a => (
+      <Entity
+        key={a.key}
+        position={computeOffsetPosition(droneBasePosition, a.dx / 2, a.dy / 2, 0)}
+        orientation={droneOrientation}
+        box={{
+          dimensions: new Cartesian3(ARM_SPAN, ARM_THICKNESS, ARM_THICKNESS * 0.9),
+          material: Color.DARKGRAY.withAlpha(0.85)
+        }}
+      />
+    ));
+
+    const propEntities = props.map(p => {
+      // Propiedades animadas: ejes y alpha. El material debe ser un MaterialProperty; usamos ColorMaterialProperty.
+      const colorCallback = new CallbackProperty(() => {
+        const t = propSpinRef.current.t * 10;
+        const phase = (Math.sin(t + p.dx + p.dy) + 1) / 2;
+        const alpha = 0.18 + phase * 0.22;
+        return Color.WHITE.withAlpha(alpha);
+      }, false);
+      const majorProp = new CallbackProperty(() => {
+        const t = propSpinRef.current.t * 12;
+        return PROP_RADIUS * (1.0 + 0.25 * Math.sin(t + p.dx));
+      }, false);
+      const minorProp = new CallbackProperty(() => {
+        const t = propSpinRef.current.t * 12;
+        return PROP_RADIUS * (0.55 + 0.15 * Math.cos(t + p.dy));
+      }, false);
+      return (
+        <Entity
+          key={p.key}
+          position={computeOffsetPosition(droneBasePosition, p.dx, p.dy, 0.08 * droneScale)}
+          orientation={droneOrientation}
+          ellipse={{
+            semiMajorAxis: majorProp,
+            semiMinorAxis: minorProp,
+            material: new ColorMaterialProperty(colorCallback)
+          }}
+        />
+      );
+    });
+
+    const motorEntities = motors.map(m => (
+      <Entity
+        key={m.key + '-motor'}
+        position={computeOffsetPosition(droneBasePosition, m.dx, m.dy, 0.02 * droneScale)}
+        orientation={droneOrientation}
+        cylinder={{
+          length: MOTOR_H,
+          topRadius: MOTOR_R,
+          bottomRadius: MOTOR_R,
+          material: Color.BLACK.withAlpha(0.9)
+        }}
+      />
+    ));
+
+    // Paleta militar
+    const baseGreen = Color.fromBytes(58, 71, 63, 255);
+    const panelGreen = Color.fromBytes(93, 111, 100, 255);
+    const accentRed = Color.fromBytes(160, 45, 38, 255);
+
+    // Nariz / indicador frontal (acento rojo)
+    const noseEntity = (
+      <Entity
+        key="nose"
+        position={computeOffsetPosition(droneBasePosition, NOSE_OFFSET * droneScale, 0, 0)}
+        orientation={droneOrientation}
+        box={{
+          dimensions: new Cartesian3(0.25 * droneScale, 0.12 * droneScale, 0.12 * droneScale),
+          material: accentRed.withAlpha(0.9)
+        }}
+      />
+    );
+
+    // Línea de altitud (tether) desde suelo
+    const altitudeLine = (
+      <Entity
+        key="altitude-line"
+        polyline={{
+          positions: [
+            Cartesian3.fromDegrees(position.lon, position.lat, 0),
+            droneBasePosition
+          ],
+          width: 2,
+          material: Color.CYAN.withAlpha(0.5)
+        }}
+      />
+    );
+
+    // Cuerpo (color varía si no hay heading)
+    const bodyColor = position?.heading == null ? baseGreen.withAlpha(0.55) : baseGreen.withAlpha(0.9);
+    const body = (
+      <Entity
+        key="body"
+        position={droneBasePosition}
+        orientation={droneOrientation}
+        box={{
+          dimensions: new Cartesian3(BODY_SIZE, BODY_SIZE, BODY_SIZE * 0.35),
+          material: bodyColor,
+          outline: true,
+          outlineColor: Color.BLACK
+        }}
+      />
+    );
+
+    // Panel superior/acento
+    const bodyTop = (
+      <Entity
+        key="body-top"
+        position={computeOffsetPosition(droneBasePosition, 0, 0, (BODY_SIZE * 0.2))}
+        orientation={droneOrientation}
+        box={{
+          dimensions: new Cartesian3(BODY_SIZE * 0.8, BODY_SIZE * 0.8, BODY_SIZE * 0.08),
+          material: panelGreen.withAlpha(0.85),
+          outline: true,
+          outlineColor: Color.BLACK.withAlpha(0.6)
+        }}
+      />
+    );
+
+    return [body, bodyTop, ...armEntities, ...motorEntities, ...propEntities, noseEntity, altitudeLine];
+  }, [droneBasePosition, droneOrientation, droneScale, position?.heading]);
+
 
   const headingLinePositions = useMemo(() => {
     if (!position || position.heading == null || position.headingSource === 'none') return null;
@@ -432,6 +670,8 @@ const MapView = ({ position, activePoi, editableModels = [] }) => {
               }}
             />
           )}
+          {/* Dron simbólico 3D (refactor con mejoras) */}
+          {droneEntities}
         </>
       )}
 
