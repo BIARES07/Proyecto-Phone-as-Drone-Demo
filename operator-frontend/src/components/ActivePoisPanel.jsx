@@ -11,7 +11,7 @@ import './ActivePoisPanel.css';
  *  - onSelect: (poi) => void  (para seguir proporcionando activePOI a MapView)
  *  - ttlMs: number  Tiempo de vida considerado "activo" (solo para mostrarlo en UI, limpieza la hace App)
  */
-const ActivePoisPanel = ({ poisMap, phonePosition, onSelect, ttlMs }) => {
+const ActivePoisPanel = ({ poisMap, phonePosition, onSelect, ttlMs, collapsed = false, onToggle }) => {
   const now = Date.now();
   const [relativeTick, setRelativeTick] = useState(0); // Para refrescar tiempos relativos cada segundo
 
@@ -74,11 +74,20 @@ const ActivePoisPanel = ({ poisMap, phonePosition, onSelect, ttlMs }) => {
   };
 
   return (
-    <aside className="active-pois-panel">
+    <aside className={`active-pois-panel ${collapsed ? 'collapsed' : ''}`}>
       <div className="panel-header">
-        <h3>Lugares de interes cercanos <span className="count-badge">{list.length}</span></h3>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8}}>
+          <h3 style={{margin:0}}>Lugares de interes cercanos <span className="count-badge">{list.length}</span></h3>
+          <div style={{display:'flex', gap:8}}>
+            <button className="collapse-btn" onClick={() => onToggle && onToggle()} aria-label="Toggle POI panel">{collapsed ? 'Abrir' : 'Ocultar'}</button>
+          </div>
+        </div>
         <div className="ttl-hint">TTL {Math.round(ttlMs/1000)}s</div>
       </div>
+      {/* Floating FAB visible when collapsed to allow opening the panel */}
+      {collapsed && (
+        <button className="collapse-fab" onClick={() => onToggle && onToggle()} aria-label="Abrir panel POIs">POI</button>
+      )}
       {list.length === 0 && (
         <div className="empty">Sin POIs activos</div>
       )}

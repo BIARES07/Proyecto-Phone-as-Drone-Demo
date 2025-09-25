@@ -5,21 +5,16 @@ import VideoStream from './components/VideoStream';
 import InfoPanel from './components/InfoPanel';
 import ActivePoisPanel from './components/ActivePoisPanel';
 import GpsDisplay from './components/GpsDisplay';
-// Editor de desarrollo: carga dinámica, no incluido en producción
-let DevModelEditor;
-if (import.meta.env.DEV) {
-  DevModelEditor = React.lazy(() => import('./components/DevModelEditor'));
-}
 import { createPeerConnection } from './lib/webrtc';
 import { computeBearing, smoothAngle } from './lib/geo';
 import './App.css';
-import './components/ModelEditor.css'; // Importar estilos del editor
 
 function App() {
   // --- STATE MANAGEMENT ---
   const [socket, setSocket] = useState(null);
   const [phonePosition, setPhonePosition] = useState(null);
   const [activePOI, setActivePOI] = useState(null);
+  const [poisCollapsed, setPoisCollapsed] = useState(false);
   const [activePoisMap, setActivePoisMap] = useState(new Map()); // key -> { ..poiData, firstSeen, lastSeen, hits }
 
   // Config TTL para POIs activos
@@ -38,9 +33,7 @@ function App() {
   const [secondsSinceFrame, setSecondsSinceFrame] = useState(0);
   const operatorStateTimerRef = useRef(null);
 
-  // Estado para los modelos 3D editables (solo en modo desarrollo)
-  // Modelos editables solo en desarrollo local
-  const [editableModels, setEditableModels] = useState([]);
+  // (Se descartó el editor de modelos; no mantenemos editableModels por ahora)
 
   const videoContainerRef = useRef(null);
   const dragDataRef = useRef({ dragging:false, offsetX:0, offsetY:0 });
@@ -349,13 +342,8 @@ function App() {
 
   // --- RENDER ---
   return (
-    <div className="app-container">
-      {/* Editor de modelos en desarrollo: React.lazy + Suspense */}
-      {import.meta.env.DEV && DevModelEditor && (
-        <React.Suspense fallback={null}>
-          <DevModelEditor models={editableModels} setModels={setEditableModels} />
-        </React.Suspense>
-      )}
+    <div className={`app-container ${poisCollapsed ? 'pois-collapsed' : ''}`}>
+      {/* Editor de modelos en desarrollo descartado por ahora */}
       <GpsDisplay position={phonePosition} />
       <div className={pipClasses} ref={videoContainerRef}>
         <div className="pip-controls" data-drag-exclude="true">
@@ -388,8 +376,8 @@ function App() {
           </span>
         )}
       </div>
-      <div className="map-container">
-        <MapView position={phonePosition} activePoi={activePOI} editableModels={editableModels} />
+      <div className={`map-container ${poisCollapsed ? 'panel-collapsed' : ''}`}>
+        <MapView position={phonePosition} activePoi={activePOI} poisMap={activePoisMap} />
       </div>
       {/* Nuevo panel lateral de POIs activos */}
       <ActivePoisPanel
@@ -397,6 +385,8 @@ function App() {
         phonePosition={phonePosition}
         onSelect={(poi) => setActivePOI(poi)}
         ttlMs={POI_TTL_MS}
+        collapsed={poisCollapsed}
+        onToggle={() => setPoisCollapsed(c => !c)}
       />
       {/* InfoPanel antiguo (desactivable). Podría eliminarse en un commit posterior */}
       {/* {activePOI && <InfoPanel poi={activePOI} />} */}

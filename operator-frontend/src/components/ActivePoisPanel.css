@@ -1,8 +1,10 @@
 .active-pois-panel {
   position: absolute;
-  top: 0;
+  /* bajar el panel para dejar visible la barra superior de Cesium (geocoder, botones) */
+  top: 56px;
   right: 0;
-  height: 100%;
+  /* restar la altura superior para no salirse */
+  height: calc(100% - 56px);
   width: 360px;
   background: rgba(15,15,20,0.92);
   backdrop-filter: blur(4px);
@@ -12,8 +14,57 @@
   border-left: 1px solid rgba(255,255,255,0.08);
   box-shadow: -4px 0 10px -2px rgba(0,0,0,0.5);
   font-family: system-ui, sans-serif;
-  z-index: 50;
+  /* bajar z-index para que los widgets de Cesium (top controls) queden por encima */
+  z-index: 30;
 }
+
+.active-pois-panel .collapse-btn {
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.active-pois-panel .collapse-btn:hover { background: rgba(255,255,255,0.04); }
+
+/* Estado colapsado: esconder contenido y reducir ancho */
+.active-pois-panel.collapsed {
+  width: 48px;
+  height: 56px;
+  overflow: visible;
+  right: 8px;
+  top: 8px;
+  border-radius: 8px;
+  padding: 6px;
+}
+.active-pois-panel.collapsed .panel-header { padding: 6px; }
+.active-pois-panel.collapsed .pois-scroll, .active-pois-panel.collapsed .poi-card, .active-pois-panel.collapsed .empty {
+  display: none;
+}
+
+/* FAB: floating action button to open the panel when collapsed */
+.collapse-fab {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: #3498db;
+  color: #fff;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+  cursor: pointer;
+  z-index: 80;
+}
+.collapse-fab:hover { filter: brightness(1.05); }
+
+/* Hide inline header button when collapsed to avoid duplicate controls */
+.active-pois-panel.collapsed .collapse-btn { display: none; }
 
 .active-pois-panel .panel-header {
   padding: 12px 16px 8px;

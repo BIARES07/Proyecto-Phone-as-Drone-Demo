@@ -21,16 +21,31 @@ body, html, #root {
 /* Mapa ocupa todo */
 .map-container {
   position: absolute;
-  inset: 0;
+  /* Dejar espacio a la derecha para el panel de POIs (ancho 360px) */
+  top: 0;
+  left: 0;
+  right: 360px;
+  bottom: 0;
   background-color: #1d1d1d;
   overflow: hidden;
+}
+
+/* Cuando el panel de POIs está colapsado, el mapa debe usar todo el ancho */
+.map-container.panel-collapsed {
+  right: 0;
+}
+
+/* Estado global cuando el panel de POIs está colapsado */
+.pois-collapsed .video-container {
+  right: 16px !important;
 }
 
 /* Video como Picture-in-Picture */
 .video-container {
   position: absolute;
   bottom: 16px;
-  right: 16px;
+  /* Mover el PiP fuera del panel de POIs para que no quede oculto */
+  right: calc(16px + 360px);
   width: 360px;
   height: 202px; /* 16:9 */
   background: #000;
@@ -43,6 +58,9 @@ body, html, #root {
   justify-content: center;
   z-index: 150;
   transition: width .25s ease, height .25s ease;
+}
+.map-container.panel-collapsed .video-container {
+  right: 16px; /* cuando el panel está colapsado, acercar PiP al borde */
 }
 
 /* Controles PiP */
