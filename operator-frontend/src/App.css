@@ -37,15 +37,16 @@ body, html, #root {
 
 /* Estado global cuando el panel de POIs está colapsado */
 .pois-collapsed .video-container {
-  right: 16px !important;
+  left: 16px !important;
 }
 
 /* Video como Picture-in-Picture */
 .video-container {
   position: absolute;
   bottom: 16px;
-  /* Mover el PiP fuera del panel de POIs para que no quede oculto */
-  right: calc(16px + 360px);
+  /* Posicionar PiP en la esquina inferior izquierda */
+  left: 16px;
+  right: auto;
   width: 360px;
   height: 202px; /* 16:9 */
   background: #000;
@@ -60,7 +61,7 @@ body, html, #root {
   transition: width .25s ease, height .25s ease;
 }
 .map-container.panel-collapsed .video-container {
-  right: 16px; /* cuando el panel está colapsado, acercar PiP al borde */
+  left: 16px; /* cuando el panel está colapsado, acercar PiP al borde */
 }
 
 /* Controles PiP */
@@ -141,7 +142,8 @@ body, html, #root {
 .status-dock {
   position: absolute;
   bottom: 16px;
-  left: 16px;
+  /* Separar del PiP colocado en la esquina inferior izquierda */
+  left: calc(16px + 380px);
   display: flex;
   gap: 8px;
   z-index: 140;
@@ -172,5 +174,6 @@ body, html, #root {
 @media (max-width: 800px) {
   .video-container { width: 260px; height: 146px; }
   .video-container:hover { width: 300px; height: 169px; }
+  .status-dock { left: 16px; }
 }
 

@@ -298,8 +298,8 @@ const MapView = ({ position, activePoi, poisMap = new Map() }) => {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* Floating control */}
-      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 90, background: 'rgba(0,0,0,0.35)', padding: 8, borderRadius: 6 }}>
+      {/* Floating control moved to bottom-right to avoid overlapping PiP */}
+      <div style={{ position: 'absolute', bottom: 10, right: 10, zIndex: 90, background: 'rgba(0,0,0,0.35)', padding: 8, borderRadius: 6 }}>
         <label style={{ color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={showBuildings} onChange={(e) => setShowBuildings(e.target.checked)} />
           Mostrar edificaciones OSM
